@@ -17,7 +17,11 @@ interface Props {
   showGit: boolean
   onGhToggle: () => void
   showGh: boolean
+  onPrToggle: () => void
+  showPr: boolean
   onLoadUrl: (url: string) => void
+  layout: 'split-h' | 'split-v' | 'editor' | 'preview'
+  onLayoutChange: (l: 'split-h' | 'split-v' | 'editor' | 'preview') => void
 }
 
 function wrapSelection(view: EditorView, before: string, after: string) {
@@ -134,7 +138,11 @@ export default function Toolbar({
   showGit,
   onGhToggle,
   showGh,
+  onPrToggle,
+  showPr,
   onLoadUrl,
+  layout,
+  onLayoutChange,
 }: Props) {
   const [urlDialogOpen, setUrlDialogOpen] = useState(false)
   const [urlInput, setUrlInput] = useState('')
@@ -181,6 +189,45 @@ export default function Toolbar({
       </ToolBtn>
       <ToolBtn title="Git panel" onClick={onGitToggle} active={showGit}>Git</ToolBtn>
       <ToolBtn title="GitHub browser" onClick={onGhToggle} active={showGh}>GH</ToolBtn>
+      <ToolBtn title="Pull Requests" onClick={onPrToggle} active={showPr}>PR</ToolBtn>
+
+      {/* Divider */}
+      <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+
+      {/* Layout toggles */}
+      {/* Split horizontal: two side-by-side rectangles with a vertical line */}
+      <ToolBtn title="Split left/right" onClick={() => onLayoutChange('split-h')} active={layout === 'split-h'}>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <rect x="1" y="2" width="5" height="12" rx="1" opacity="0.9"/>
+          <rect x="7.5" y="2" width="1" height="12"/>
+          <rect x="10" y="2" width="5" height="12" rx="1" opacity="0.9"/>
+        </svg>
+      </ToolBtn>
+      {/* Split vertical: two stacked rectangles with a horizontal line */}
+      <ToolBtn title="Split top/bottom" onClick={() => onLayoutChange('split-v')} active={layout === 'split-v'}>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <rect x="2" y="1" width="12" height="5" rx="1" opacity="0.9"/>
+          <rect x="2" y="7.5" width="12" height="1"/>
+          <rect x="2" y="10" width="12" height="5" rx="1" opacity="0.9"/>
+        </svg>
+      </ToolBtn>
+      {/* Editor only: single rectangle left-aligned */}
+      <ToolBtn title="Editor only" onClick={() => onLayoutChange('editor')} active={layout === 'editor'}>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <rect x="1" y="2" width="14" height="12" rx="1" opacity="0.9"/>
+          <line x1="3" y1="6" x2="13" y2="6" stroke="currentColor" strokeWidth="1.5" opacity="0.4"/>
+          <line x1="3" y1="9" x2="10" y2="9" stroke="currentColor" strokeWidth="1.5" opacity="0.4"/>
+        </svg>
+      </ToolBtn>
+      {/* Preview only: single rectangle with rendered look */}
+      <ToolBtn title="Preview only" onClick={() => onLayoutChange('preview')} active={layout === 'preview'}>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+          <rect x="1" y="2" width="14" height="12" rx="1" opacity="0.9"/>
+          <rect x="3" y="5" width="4" height="1.5" rx="0.5" opacity="0.4"/>
+          <rect x="3" y="8" width="10" height="1" rx="0.5" opacity="0.4"/>
+          <rect x="3" y="10.5" width="8" height="1" rx="0.5" opacity="0.4"/>
+        </svg>
+      </ToolBtn>
       <Divider />
 
       {/* URL loader */}

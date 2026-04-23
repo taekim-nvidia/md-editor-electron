@@ -17,6 +17,7 @@ import FindReplace from './components/FindReplace'
 import StatusBar from './components/StatusBar'
 import GitPanel from './components/GitPanel'
 import GitHubBrowser from './components/GitHubBrowser'
+import PRPanel from './components/PRPanel'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -70,6 +71,9 @@ export default function App() {
   const [showFindReplace, setShowFindReplace] = useState(false)
   const [showGit, setShowGit] = useState(false)
   const [showGh, setShowGh] = useState(false)
+  const [showPr, setShowPr] = useState(false)
+  type Layout = 'split-h' | 'split-v' | 'editor' | 'preview'
+  const [layout, setLayout] = useState<Layout>('split-h')
 
   const editorRef = useRef<EditorRef>(null)
   const previewRef = useRef<PreviewRef>(null)
@@ -325,7 +329,7 @@ ${body}
     []
   )
 
-  // ── GitHub browser: open file ─────────────────────────────────────────────
+  // ── GitHub browser / PR panel: open file ──────────────────────────────────
   const handleGhOpenFile = useCallback(
     (filename: string, content: string, path: string) => {
       const existing = tabs.find((t) => t.filePath === path)
@@ -458,7 +462,11 @@ ${body}
           showGit={showGit}
           onGhToggle={() => setShowGh((v) => !v)}
           showGh={showGh}
+          onPrToggle={() => setShowPr((v) => !v)}
+          showPr={showPr}
           onLoadUrl={loadUrl}
+          layout={layout}
+          onLayoutChange={setLayout}
         />
       </div>
 
@@ -472,33 +480,56 @@ ${body}
 
       {/* Main area: split pane + side panels */}
       <div className="flex flex-1 overflow-hidden" style={{minHeight: 0}}>
-        <SplitPane
-          left={
-            <div className="h-full flex flex-col overflow-hidden">
-              <div className="flex-1 overflow-hidden">
-                <Editor
-                  ref={editorRef}
-                  content={activeTab?.content ?? ''}
-                  onChange={updateActiveTabContent}
-                  theme={theme}
-                  fontSize={fontSize}
-                  onScrollSync={handleEditorScroll}
-                  onViewReady={() => {
-                    // force re-render to expose editorView to toolbar
-                    // (view is captured via ref)
-                  }}
-                />
-              </div>
-            </div>
-          }
-          right={
+        {/* Layout: split-h | split-v | editor | preview */}
+        {layout === 'editor' ? (
+          <div className="flex-1 overflow-hidden">
+            <Editor
+              key={activeTabId}
+              ref={editorRef}
+              content={activeTab?.content ?? ''}
+              onChange={updateActiveTabContent}
+              theme={theme}
+              fontSize={fontSize}
+              onScrollSync={handleEditorScroll}
+              onViewReady={() => {}}
+            />
+          </div>
+        ) : layout === 'preview' ? (
+          <div className="flex-1 overflow-hidden">
             <Preview
               ref={previewRef}
               content={activeTab?.content ?? ''}
               fontSize={fontSize}
             />
-          }
-        />
+          </div>
+        ) : (
+          <SplitPane
+            direction={layout === 'split-v' ? 'vertical' : 'horizontal'}
+            left={
+              <div className="h-full flex flex-col overflow-hidden">
+                <div className="flex-1 overflow-hidden">
+                  <Editor
+                    key={activeTabId}
+                    ref={editorRef}
+                    content={activeTab?.content ?? ''}
+                    onChange={updateActiveTabContent}
+                    theme={theme}
+                    fontSize={fontSize}
+                    onScrollSync={handleEditorScroll}
+                    onViewReady={() => {}}
+                  />
+                </div>
+              </div>
+            }
+            right={
+              <Preview
+                ref={previewRef}
+                content={activeTab?.content ?? ''}
+                fontSize={fontSize}
+              />
+            }
+          />
+        )}
 
         {/* Git panel */}
         {showGit && (
@@ -513,6 +544,18 @@ ${body}
 
         {/* GitHub browser panel */}
         {showGh && <GitHubBrowser onOpenFile={handleGhOpenFile} />}
+
+        {/* PR panel */}
+        {showPr && (
+          <PRPanel
+            cwd={
+              activeTab?.filePath
+                ? activeTab.filePath.replace(/\/[^/]+$/, '') || '/'
+                : undefined
+            }
+            onOpenFile={handleGhOpenFile}
+          />
+        )}
       </div>
 
       {/* Status bar */}

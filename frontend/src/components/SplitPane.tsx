@@ -3,7 +3,8 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 interface Props {
   left: React.ReactNode
   right: React.ReactNode
-  initialRatio?: number // 0–100, default 50
+  direction?: 'horizontal' | 'vertical'
+  initialRatio?: number
   minRatio?: number
   maxRatio?: number
 }
@@ -11,6 +12,7 @@ interface Props {
 export default function SplitPane({
   left,
   right,
+  direction = 'horizontal',
   initialRatio = 50,
   minRatio = 15,
   maxRatio = 85,
@@ -18,6 +20,7 @@ export default function SplitPane({
   const [ratio, setRatio] = useState(initialRatio)
   const [dragging, setDragging] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const isH = direction === 'horizontal'
 
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -28,21 +31,21 @@ export default function SplitPane({
     (e: MouseEvent) => {
       if (!dragging || !containerRef.current) return
       const rect = containerRef.current.getBoundingClientRect()
-      const newRatio = ((e.clientX - rect.left) / rect.width) * 100
+      const newRatio = isH
+        ? ((e.clientX - rect.left) / rect.width) * 100
+        : ((e.clientY - rect.top) / rect.height) * 100
       setRatio(Math.min(maxRatio, Math.max(minRatio, newRatio)))
     },
-    [dragging, minRatio, maxRatio]
+    [dragging, isH, minRatio, maxRatio]
   )
 
-  const onMouseUp = useCallback(() => {
-    setDragging(false)
-  }, [])
+  const onMouseUp = useCallback(() => setDragging(false), [])
 
   useEffect(() => {
     if (dragging) {
       window.addEventListener('mousemove', onMouseMove)
       window.addEventListener('mouseup', onMouseUp)
-      document.body.style.cursor = 'col-resize'
+      document.body.style.cursor = isH ? 'col-resize' : 'row-resize'
       document.body.style.userSelect = 'none'
     }
     return () => {
@@ -51,14 +54,18 @@ export default function SplitPane({
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
-  }, [dragging, onMouseMove, onMouseUp])
+  }, [dragging, isH, onMouseMove, onMouseUp])
 
   return (
-    <div ref={containerRef} className="flex w-full h-full overflow-hidden" style={{minHeight: 0}}>
-      {/* Left pane */}
+    <div
+      ref={containerRef}
+      className={`flex w-full h-full overflow-hidden ${isH ? 'flex-row' : 'flex-col'}`}
+      style={{ minHeight: 0 }}
+    >
+      {/* First pane */}
       <div
-        style={{ width: `${ratio}%` }}
-        className="h-full overflow-hidden flex flex-col min-w-0"
+        style={isH ? { width: `${ratio}%` } : { height: `${ratio}%` }}
+        className="overflow-hidden flex flex-col min-w-0 min-h-0"
       >
         {left}
       </div>
@@ -66,13 +73,15 @@ export default function SplitPane({
       {/* Divider */}
       <div
         onMouseDown={onMouseDown}
-        className={`split-divider w-1 h-full bg-gray-200 dark:bg-gray-700 shrink-0 transition-colors ${dragging ? 'dragging' : ''}`}
+        className={`shrink-0 bg-gray-200 dark:bg-gray-700 hover:bg-blue-400 dark:hover:bg-blue-600 transition-colors ${
+          dragging ? 'bg-blue-500' : ''
+        } ${isH ? 'w-1 h-full cursor-col-resize' : 'h-1 w-full cursor-row-resize'}`}
       />
 
-      {/* Right pane */}
+      {/* Second pane */}
       <div
-        style={{ width: `${100 - ratio}%` }}
-        className="h-full overflow-hidden flex flex-col min-w-0"
+        style={isH ? { width: `${100 - ratio}%` } : { height: `${100 - ratio}%` }}
+        className="overflow-hidden flex flex-col min-w-0 min-h-0"
       >
         {right}
       </div>
