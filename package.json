@@ -6,7 +6,7 @@
     "frontend"
   ],
   "scripts": {
-    "electron:compile": "tsc -p electron/tsconfig.json",
+    "electron:compile": "npx tsc -p electron/tsconfig.json",
     "dev": "npm run electron:compile && concurrently -n vite,electron -c magenta,cyan \"npm run dev --workspace=frontend\" \"wait-on tcp:5173 && electron .\"",
     "build": "npm run build --workspace=frontend && npm run electron:compile",
     "dist": "npm run build && electron-builder",
