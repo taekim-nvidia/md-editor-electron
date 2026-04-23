@@ -22,6 +22,8 @@ interface Props {
   onLoadUrl: (url: string) => void
   layout: 'split-h' | 'split-v' | 'editor' | 'preview'
   onLayoutChange: (l: 'split-h' | 'split-v' | 'editor' | 'preview') => void
+  editorMode: 'source' | 'wysiwyg'
+  onEditorModeChange: (mode: 'source' | 'wysiwyg') => void
 }
 
 function wrapSelection(view: EditorView, before: string, after: string) {
@@ -143,6 +145,8 @@ export default function Toolbar({
   onLoadUrl,
   layout,
   onLayoutChange,
+  editorMode,
+  onEditorModeChange,
 }: Props) {
   const [urlDialogOpen, setUrlDialogOpen] = useState(false)
   const [urlInput, setUrlInput] = useState('')
@@ -227,6 +231,23 @@ export default function Toolbar({
           <rect x="3" y="8" width="10" height="1" rx="0.5" opacity="0.4"/>
           <rect x="3" y="10.5" width="8" height="1" rx="0.5" opacity="0.4"/>
         </svg>
+      </ToolBtn>
+      <Divider />
+
+      {/* Editor mode toggle */}
+      <ToolBtn
+        title="Source mode: CodeMirror + WYSIWYG side by side"
+        onClick={() => onEditorModeChange('source')}
+        active={editorMode === 'source'}
+      >
+        Source
+      </ToolBtn>
+      <ToolBtn
+        title="WYSIWYG mode: full-width rich text editor"
+        onClick={() => onEditorModeChange('wysiwyg')}
+        active={editorMode === 'wysiwyg'}
+      >
+        WYSIWYG
       </ToolBtn>
       <Divider />
 

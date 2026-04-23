@@ -12,6 +12,7 @@ import TabBar from './components/TabBar'
 import Toolbar from './components/Toolbar'
 import Editor, { EditorRef, SAMPLE_CONTENT } from './components/Editor'
 import Preview, { PreviewRef } from './components/Preview'
+import WysiwygEditor, { WysiwygEditorRef } from './components/WysiwygEditor'
 import SplitPane from './components/SplitPane'
 import FindReplace from './components/FindReplace'
 import StatusBar from './components/StatusBar'
@@ -74,10 +75,14 @@ export default function App() {
   const [showPr, setShowPr] = useState(false)
   type Layout = 'split-h' | 'split-v' | 'editor' | 'preview'
   const [layout, setLayout] = useState<Layout>('split-h')
+  const [editorMode, setEditorMode] = useState<'source' | 'wysiwyg'>('source')
 
   const editorRef = useRef<EditorRef>(null)
   const previewRef = useRef<PreviewRef>(null)
+  const wysiwygRef = useRef<WysiwygEditorRef>(null)
   const scrollSyncRef = useRef(true)
+  const isSyncingRef = useRef(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
@@ -325,8 +330,44 @@ ${body}
       const maxScroll = scrollHeight - clientHeight
       if (maxScroll <= 0) return
       previewRef.current?.scrollTo(scrollTop / maxScroll)
+      wysiwygRef.current?.scrollTo(scrollTop / maxScroll)
     },
     []
+  )
+
+  // ── CodeMirror → Tiptap sync ──────────────────────────────────────────────
+  const handleEditorChange = useCallback(
+    (content: string) => {
+      updateActiveTabContent(content)
+      if (isSyncingRef.current) return
+      isSyncingRef.current = true
+      wysiwygRef.current?.setMarkdown(content)
+      isSyncingRef.current = false
+    },
+    [updateActiveTabContent]
+  )
+
+  // ── Tiptap → CodeMirror sync (debounced 300ms) ────────────────────────────
+  const handleWysiwygChange = useCallback(
+    (markdown: string) => {
+      if (isSyncingRef.current) return
+      updateActiveTabContent(markdown)
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      debounceRef.current = setTimeout(() => {
+        isSyncingRef.current = true
+        const view = editorRef.current?.getView()
+        if (view) {
+          const current = view.state.doc.toString()
+          if (current !== markdown) {
+            view.dispatch({
+              changes: { from: 0, to: view.state.doc.length, insert: markdown },
+            })
+          }
+        }
+        isSyncingRef.current = false
+      }, 300)
+    },
+    [updateActiveTabContent]
   )
 
   // ── GitHub browser / PR panel: open file ──────────────────────────────────
@@ -467,6 +508,8 @@ ${body}
           onLoadUrl={loadUrl}
           layout={layout}
           onLayoutChange={setLayout}
+          editorMode={editorMode}
+          onEditorModeChange={setEditorMode}
         />
       </div>
 
@@ -480,14 +523,25 @@ ${body}
 
       {/* Main area: split pane + side panels */}
       <div className="flex flex-1 overflow-hidden" style={{minHeight: 0}}>
-        {/* Layout: split-h | split-v | editor | preview */}
-        {layout === 'editor' ? (
+        {/* Layout: split-h | split-v | editor | preview — plus editorMode */}
+        {editorMode === 'wysiwyg' ? (
+          <div className="flex-1 overflow-hidden">
+            <WysiwygEditor
+              key={activeTabId}
+              ref={wysiwygRef}
+              content={activeTab?.content ?? ''}
+              onChange={handleWysiwygChange}
+              theme={theme}
+              fontSize={fontSize}
+            />
+          </div>
+        ) : layout === 'editor' ? (
           <div className="flex-1 overflow-hidden">
             <Editor
               key={activeTabId}
               ref={editorRef}
               content={activeTab?.content ?? ''}
-              onChange={updateActiveTabContent}
+              onChange={handleEditorChange}
               theme={theme}
               fontSize={fontSize}
               onScrollSync={handleEditorScroll}
@@ -512,7 +566,7 @@ ${body}
                     key={activeTabId}
                     ref={editorRef}
                     content={activeTab?.content ?? ''}
-                    onChange={updateActiveTabContent}
+                    onChange={handleEditorChange}
                     theme={theme}
                     fontSize={fontSize}
                     onScrollSync={handleEditorScroll}
@@ -522,9 +576,12 @@ ${body}
               </div>
             }
             right={
-              <Preview
-                ref={previewRef}
+              <WysiwygEditor
+                key={activeTabId}
+                ref={wysiwygRef}
                 content={activeTab?.content ?? ''}
+                onChange={handleWysiwygChange}
+                theme={theme}
                 fontSize={fontSize}
               />
             }
