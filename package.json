@@ -1,0 +1,37 @@
+{
+  "name": "md-editor-electron",
+  "private": true,
+  "main": "dist-electron/main.js",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "electron:compile": "tsc -p electron/tsconfig.json",
+    "dev": "npm run electron:compile && concurrently -n vite,electron -c magenta,cyan \"npm run dev --workspace=frontend\" \"wait-on tcp:5173 && electron .\"",
+    "build": "npm run build --workspace=frontend && npm run electron:compile",
+    "dist": "npm run build && electron-builder",
+    "install:all": "npm install"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.5",
+    "concurrently": "^8.2.2",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.9.1",
+    "typescript": "^5.3.3",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.nvidia.md-editor",
+    "productName": "MD Editor",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "linux": {
+      "target": [
+        "deb",
+        "AppImage"
+      ]
+    }
+  }
+}
