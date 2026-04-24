@@ -202,6 +202,12 @@ export default function App() {
     e.target.value = ''
   }
 
+  // Cross-platform directory extraction (handles both / and \ separators)
+  const dirName = (filePath: string) => {
+    const i = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
+    return i > 0 ? filePath.slice(0, i) : filePath
+  }
+
   // ── File save ─────────────────────────────────────────────────────────────
   const saveCurrentTab = useCallback(async () => {
     if (!activeTab) return
@@ -618,7 +624,7 @@ ${body}
           <GitPanel
             cwd={
               activeTab?.filePath
-                ? activeTab.filePath.replace(/[\\/][^\\/]+$/, '') || activeTab.filePath
+                ? dirName(activeTab.filePath)
                 : undefined
             }
             onSave={saveCurrentTab}
@@ -633,7 +639,7 @@ ${body}
           <PRPanel
             cwd={
               activeTab?.filePath
-                ? activeTab.filePath.replace(/\/[^/]+$/, '') || '/'
+                ? dirName(activeTab.filePath)
                 : undefined
             }
             onOpenFile={handleGhOpenFile}
