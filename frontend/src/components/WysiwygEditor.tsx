@@ -1,4 +1,5 @@
 import React, {
+  useEffect,
   useImperativeHandle,
   forwardRef,
   useRef,
@@ -47,6 +48,9 @@ const WysiwygEditor = forwardRef<WysiwygEditorRef, Props>(
     const onChangeRef = useRef(onChange)
     onChangeRef.current = onChange
 
+    // Track last content set from outside to avoid re-setting same content
+    const lastExternalContent = useRef(content)
+
     const editor = useEditor({
       extensions: [
         StarterKit.configure({ codeBlock: false }),
@@ -68,6 +72,18 @@ const WysiwygEditor = forwardRef<WysiwygEditorRef, Props>(
         onChangeRef.current(editor.getMarkdown())
       },
     })
+
+    // Sync content prop → Tiptap when it changes (e.g. new tab opened, URL loaded)
+    useEffect(() => {
+      if (!editor) return
+      if (content === lastExternalContent.current) return
+      lastExternalContent.current = content
+      const current = editor.getMarkdown()
+      if (current === content) return
+      isSettingContent.current = true
+      editor.commands.setContent(content, { contentType: 'markdown' })
+      isSettingContent.current = false
+    }, [editor, content])
 
     useImperativeHandle(
       ref,
