@@ -139,9 +139,9 @@ export default function App() {
   // ── File open ─────────────────────────────────────────────────────────────
   const openFileDialog = async () => {
     if (window.electronAPI) {
-      // Electron: showOpenDialog returns string | null (single path)
-      const filePath = await window.electronAPI.showOpenDialog()
-      if (!filePath) return
+      const paths = await window.electronAPI.showOpenDialog()
+      if (!paths || paths.length === 0) return
+      const filePath = paths[0]
       try {
         const content = await window.electronAPI.readFile(filePath)
         const filename = filePath.split('/').pop() ?? 'file.md'
@@ -454,19 +454,22 @@ ${body}
         }
         return
       }
-      // Font size: Ctrl+= or Ctrl++ to increase, Ctrl+- to decrease, Ctrl+0 to reset
-      if (ctrl && (e.key === '=' || e.key === '+')) {
+      // Font size: Ctrl+= or Ctrl++ (shift+=) to increase, Ctrl+- to decrease, Ctrl+0 reset
+      if (ctrl && (e.key === '=' || e.key === '+' || (e.shiftKey && e.key === '='))) {
         e.preventDefault()
+        e.stopPropagation()
         setFontSize((s) => Math.min(s + 2, 32))
         return
       }
       if (ctrl && e.key === '-') {
         e.preventDefault()
+        e.stopPropagation()
         setFontSize((s) => Math.max(s - 2, 10))
         return
       }
       if (ctrl && e.key === '0') {
         e.preventDefault()
+        e.stopPropagation()
         setFontSize(14)
         return
       }

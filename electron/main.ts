@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import * as fs from 'fs'
@@ -25,6 +25,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      zoomFactor: 1.0,
     },
   })
 
@@ -40,6 +41,8 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Remove default menu so Electron doesn't intercept Ctrl+/- for zoom
+  Menu.setApplicationMenu(null)
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
