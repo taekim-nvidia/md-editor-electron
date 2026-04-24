@@ -314,11 +314,13 @@ ${body}
     async (url: string) => {
       try {
         const data = await fetchMarkdownUrl(url)
-        console.log('[loadUrl] result:', data.ok, 'content length:', data.content?.length, 'error:', data.error)
         if (data.ok) {
           const filename = url.split('/').pop() ?? 'fetched.md'
-          console.log('[loadUrl] first 200 chars:', data.content?.slice(0, 200))
           newTab(filename, data.content)
+          // Directly push content into Tiptap after a tick to ensure React state settled
+          setTimeout(() => {
+            wysiwygRef.current?.setMarkdown(data.content)
+          }, 50)
         } else {
           alert('Failed to load URL: ' + data.error)
         }

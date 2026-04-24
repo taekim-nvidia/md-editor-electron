@@ -75,17 +75,14 @@ const WysiwygEditor = forwardRef<WysiwygEditorRef, Props>(
 
     // Sync content prop → Tiptap when it changes (e.g. new tab opened, URL loaded)
     useEffect(() => {
-      console.log('[WysiwygEditor] content prop changed, length:', content.length)
-      if (!editor) { console.log('[WysiwygEditor] editor not ready'); return }
-      if (content === lastExternalContent.current) { console.log('[WysiwygEditor] same content, skip'); return }
+      if (!editor) return
+      if (content === lastExternalContent.current) return
       lastExternalContent.current = content
       const current = editor.getMarkdown()
-      if (current === content) { console.log('[WysiwygEditor] already matches, skip'); return }
-      console.log('[WysiwygEditor] setting content...')
+      if (current === content) return
       isSettingContent.current = true
       editor.commands.setContent(content, { contentType: 'markdown' })
       isSettingContent.current = false
-      console.log('[WysiwygEditor] content set done')
     }, [editor, content])
 
     useImperativeHandle(
