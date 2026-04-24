@@ -619,6 +619,7 @@ ${body}
                 ? activeTab.filePath.replace(/\/[^/]+$/, '') || '/'
                 : undefined
             }
+            onSave={saveCurrentTab}
           />
         )}
 
