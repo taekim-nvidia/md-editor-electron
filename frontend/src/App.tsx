@@ -76,7 +76,7 @@ export default function App() {
   const [showPr, setShowPr] = useState(false)
   type Layout = 'split-h' | 'split-v' | 'editor' | 'preview'
   const [layout, setLayout] = useState<Layout>('split-h')
-  const [editorMode, setEditorMode] = useState<'source' | 'wysiwyg'>('source')
+  const [editorMode, setEditorMode] = useState<'source' | 'wysiwyg'>('wysiwyg')
 
   const editorRef = useRef<EditorRef>(null)
   const previewRef = useRef<PreviewRef>(null)
