@@ -101,6 +101,9 @@ export default function App() {
 
   // Auto-save on commit only (no timer)
 
+  // Keep a stable ref to saveCurrentTab so GitPanel always calls the latest version
+  const saveCurrentTabRef = useRef<() => Promise<void>>(async () => {})
+
   // ── Tab helpers ────────────────────────────────────────────────────────────
   const updateActiveTabContent = useCallback(
     (content: string) => {
@@ -637,7 +640,7 @@ ${body}
                 ? dirName(activeTab.filePath)
                 : undefined
             }
-            onSave={saveCurrentTab}
+            onSave={() => saveCurrentTabRef.current()}
           />
         )}
 
