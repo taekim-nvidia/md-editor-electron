@@ -213,7 +213,8 @@ export default function App() {
 
   // ── File save ─────────────────────────────────────────────────────────────
   const saveCurrentTab = useCallback(async () => {
-    if (!activeTab) return
+    console.log('[save] called, activeTab:', activeTab?.filePath ?? 'NULL', 'activeTabId:', activeTabId)
+    if (!activeTab) { console.error('[save] ABORT: activeTab is null'); return }
     // Always get latest content from editor refs at call time
     // editorRef = CodeMirror (source mode), wysiwygRef = Tiptap (wysiwyg mode)
     // Fall back to React state only if both refs are unavailable
