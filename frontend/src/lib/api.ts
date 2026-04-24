@@ -373,9 +373,23 @@ export async function gitRemote(
 // ── URL fetch ─────────────────────────────────────────────────────────────────
 
 export async function fetchMarkdownUrl(url: string): Promise<FetchUrlResult> {
-  // Convert github.com blob URLs to raw.githubusercontent.com
-  let fetchUrl = url
-  const ghMatch = url.match(
+  // Trim trailing punctuation that users sometimes accidentally include
+  const cleanUrl = url.trim().replace(/[.,;!?]+$/, '')
+
+  if (isElectron()) {
+    // Always use the IPC handler — it supports private GitHub repos via gh CLI
+    try {
+      const r = await window.electronAPI!.fetchUrl(cleanUrl)
+      if (!r.ok) return { ok: false, content: '', url: cleanUrl, error: r.error ?? 'Failed' }
+      return { ok: true, content: r.content ?? '', url: r.url ?? cleanUrl }
+    } catch (err) {
+      return { ok: false, content: '', url: cleanUrl, error: String(err) }
+    }
+  }
+
+  // Web version: convert github.com blob URLs to raw then fetch
+  let fetchUrl = cleanUrl
+  const ghMatch = cleanUrl.match(
     /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/
   )
   if (ghMatch) {
@@ -383,22 +397,10 @@ export async function fetchMarkdownUrl(url: string): Promise<FetchUrlResult> {
     fetchUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`
   }
 
-  if (isElectron()) {
-    // Electron renderer can fetch CORS-enabled URLs directly
-    try {
-      const r = await fetch(fetchUrl)
-      if (!r.ok) return { ok: false, content: '', url: fetchUrl, error: `HTTP ${r.status}` }
-      const content = await r.text()
-      return { ok: true, content, url: fetchUrl }
-    } catch (err) {
-      return { ok: false, content: '', url: fetchUrl, error: String(err) }
-    }
-  }
-
   const res = await fetch('/api/fetch-url', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url: cleanUrl }),
   })
   return res.json()
 }
