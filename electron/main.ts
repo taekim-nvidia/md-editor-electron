@@ -124,12 +124,20 @@ async function ensureGitIdentity() {
 }
 
 ipcMain.handle('git:run', async (_event, args: string[], cwd: string) => {
+  console.log('[git:run]', args, 'cwd:', cwd)
   try {
     const { stdout, stderr } = await execFileAsync('git', args, { cwd })
+    console.log('[git:run] ok stdout:', stdout, 'stderr:', stderr)
     return { ok: true, stdout, stderr }
   } catch (err) {
     const e = err as NodeJS.ErrnoException & { stdout?: string; stderr?: string }
-    return { ok: false, stdout: e.stdout ?? '', stderr: e.stderr ?? e.message ?? String(err) }
+    const errMsg = e.stderr ?? e.stdout ?? e.message ?? String(err)
+    console.error('[git:run] FAILED args:', args, 'error:', errMsg)
+    // Show native dialog so error is impossible to miss
+    const { dialog, BrowserWindow } = require('electron')
+    const win = BrowserWindow.getFocusedWindow()
+    if (win) dialog.showErrorBox('Git Error', `Command: git ${args.join(' ')}\n\nError:\n${errMsg}`)
+    return { ok: false, stdout: e.stdout ?? '', stderr: errMsg }
   }
 })
 
