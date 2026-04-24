@@ -67,7 +67,10 @@ function createWindow() {
 
   if (isDev) {
     win.loadURL('http://localhost:5173')
-    win.webContents.openDevTools()
+    // DevTools disabled by default — pass --devtools flag to enable
+    if (process.argv.includes('--devtools')) {
+      win.webContents.openDevTools()
+    }
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'))
   }
