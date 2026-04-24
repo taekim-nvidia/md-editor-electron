@@ -78,6 +78,20 @@ gh auth login
 
 ---
 
+## Verify Installation
+
+Run these commands — all should print a version number:
+
+```bash
+node --version     # should be 18 or higher
+npm --version      # should be 9 or higher
+git --version
+gh --version
+gh auth status     # should say: Logged in to github.com
+```
+
+---
+
 ## Run the App
 
 ```bash
