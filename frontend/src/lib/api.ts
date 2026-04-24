@@ -122,8 +122,11 @@ export async function gitCommit(cwd: string, message: string, addAll?: boolean):
         await window.electronAPI!.runGit(['add', '-A'], cwd)
       }
       const r = await window.electronAPI!.runGit(['commit', '-m', message], cwd)
-      return { ok: r.ok, output: r.stdout + r.stderr }
+      const output = (r.stdout + r.stderr).trim()
+      console.log('[gitCommit] result:', r)
+      return { ok: r.ok, output, error: r.ok ? undefined : (output || 'Commit failed') }
     } catch (err) {
+      console.error('[gitCommit] exception:', err)
       return { ok: false, output: '', error: String(err) }
     }
   }

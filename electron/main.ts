@@ -47,6 +47,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  ensureGitIdentity()
   // Custom menu — removes default zoom shortcuts (Ctrl+/-)
   // so our font size controls work correctly
   const template: Electron.MenuItemConstructorOptions[] = [
@@ -100,6 +101,27 @@ app.on('window-all-closed', () => {
 })
 
 // ── IPC: git ──────────────────────────────────────────────────────────────────
+
+// ── Auto-configure git identity from gh ──────────────────────────────────────
+async function ensureGitIdentity() {
+  try {
+    const { execSync } = require('child_process')
+    try {
+      const name  = execSync('git config --global user.name',  { encoding: 'utf8' }).trim()
+      const email = execSync('git config --global user.email', { encoding: 'utf8' }).trim()
+      if (name && email) return
+    } catch (_) {}
+    const { stdout } = await execFileAsync('gh', ['api', 'user', '--jq', '.login + "\n" + (.name // .login)'])
+    const [login, name] = stdout.trim().split('\n')
+    const email = `${login}@users.noreply.github.com`
+    const { execSync: es } = require('child_process')
+    es(`git config --global user.name "${name || login}"`)
+    es(`git config --global user.email "${email}"`)
+    console.log(`[git] identity set: ${name || login} <${email}>`)
+  } catch (e) {
+    console.warn('[git] could not auto-configure identity:', e)
+  }
+}
 
 ipcMain.handle('git:run', async (_event, args: string[], cwd: string) => {
   try {
