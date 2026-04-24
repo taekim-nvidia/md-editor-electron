@@ -312,26 +312,47 @@ ${body}
   // ── URL loader ────────────────────────────────────────────────────────────
   const loadUrl = useCallback(
     async (url: string) => {
+      const cleanUrl = url.trim().replace(/[.,;!?]+$/, '')
       try {
-        const data = await fetchMarkdownUrl(url)
+        // GitHub repo/blob URL — use ghClone + readFile (same path as GitHub Browser)
+        const ghBlob = cleanUrl.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/)
+        const ghRepo = cleanUrl.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/)
+
+        if ((ghBlob || ghRepo) && window.electronAPI) {
+          const nameWithOwner = ghBlob ? `${ghBlob[1]}/${ghBlob[2]}` : `${ghRepo![1]}/${ghRepo![2]}`
+          const cloneResult = await window.electronAPI.ghClone(nameWithOwner)
+          if (!cloneResult.ok) { alert('Failed to clone: ' + cloneResult.error); return }
+
+          // Determine file path inside the clone
+          const repoPath = cloneResult.path
+          let filePath: string
+          if (ghBlob) {
+            filePath = repoPath + '/' + ghBlob[4]
+          } else {
+            // Repo root — find README
+            for (const name of ['README.md', 'readme.md', 'README.markdown', 'index.md']) {
+              const candidate = repoPath + '/' + name
+              try {
+                const content = await window.electronAPI.readFile(candidate)
+                handleGhOpenFile(name, content, candidate)
+                return
+              } catch (_) {}
+            }
+            alert('No README found in repo')
+            return
+          }
+
+          const content = await window.electronAPI.readFile(filePath)
+          const filename = filePath.split('/').pop() ?? 'file.md'
+          handleGhOpenFile(filename, content, filePath)
+          return
+        }
+
+        // Non-GitHub URL — plain fetch
+        const data = await fetchMarkdownUrl(cleanUrl)
         if (data.ok) {
-          const filename = url.split('/').pop() ?? 'fetched.md'
-          const tab = newTab(filename, data.content)
-          // Force content into both editors after React settles
-          const loadedContent = data.content
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              // Update CodeMirror
-              const view = editorRef.current?.getView()
-              if (view) {
-                view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: loadedContent } })
-              }
-              // Update Tiptap
-              if (wysiwygRef.current) {
-                wysiwygRef.current.setMarkdown(loadedContent)
-              }
-            })
-          })
+          const filename = cleanUrl.split('/').pop() ?? 'fetched.md'
+          newTab(filename, data.content)
         } else {
           alert('Failed to load URL: ' + data.error)
         }
