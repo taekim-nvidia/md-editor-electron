@@ -107,7 +107,10 @@ export default function GitPanel({ cwd }: Props) {
         if (addAll) {
           const addR = await window.electronAPI.runGit(['add', '-A'], cwdInput)
           if (!addR.ok) {
-            setOutput('Error during add: ' + addR.stderr)
+            const addMsg = (addR.stdout + '\n' + addR.stderr).trim()
+            setOutput('git add failed: ' + (addMsg || 'unknown error'))
+            setIsError(true)
+            console.error('[GitPanel add] failed:', addR)
             return
           }
         }
@@ -115,11 +118,10 @@ export default function GitPanel({ cwd }: Props) {
           ['commit', '-m', commitMsg],
           cwdInput
         )
-        setOutput(
-          r.ok
-            ? r.stdout + (r.stderr ? '\n' + r.stderr : '')
-            : 'Error: ' + r.stderr
-        )
+        const msg = (r.stdout + '\n' + r.stderr).trim()
+        console.error('[GitPanel commit] result:', r)
+        setOutput(msg || (r.ok ? 'Committed.' : 'Commit failed'))
+        setIsError(!r.ok)
         if (r.ok) fetchStatus()
       } else {
         const res = await fetch('/api/git/commit', {
