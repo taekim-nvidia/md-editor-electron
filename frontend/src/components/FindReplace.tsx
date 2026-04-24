@@ -8,13 +8,15 @@ import {
   replaceNext,
   replaceAll,
 } from '@codemirror/search'
+import type { WysiwygEditorRef } from './WysiwygEditor'
 
 interface Props {
   editorView: EditorView | null
+  wysiwygRef?: React.RefObject<WysiwygEditorRef | null>
   onClose: () => void
 }
 
-export default function FindReplace({ editorView, onClose }: Props) {
+export default function FindReplace({ editorView, wysiwygRef, onClose }: Props) {
   const [searchText, setSearchText] = useState('')
   const [replaceText, setReplaceText] = useState('')
   const [caseSensitive, setCaseSensitive] = useState(false)
@@ -23,6 +25,10 @@ export default function FindReplace({ editorView, onClose }: Props) {
 
   const applyQuery = useCallback(
     (search: string, cs: boolean, regex: boolean) => {
+      if (wysiwygRef?.current) {
+        setMatchCount(wysiwygRef.current.countMatches(search, cs))
+        return
+      }
       if (!editorView) return
       if (!search) {
         editorView.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '' })) })
@@ -56,41 +62,48 @@ export default function FindReplace({ editorView, onClose }: Props) {
   }, [searchText, caseSensitive, useRegex, applyQuery])
 
   const handleFindNext = () => {
-    if (!editorView) return
-    findNext(editorView)
-    editorView.focus()
+    if (wysiwygRef?.current) {
+      const count = wysiwygRef.current.findNext(searchText, caseSensitive)
+      setMatchCount(count)
+    } else if (editorView) {
+      findNext(editorView)
+      editorView.focus()
+    }
   }
 
   const handleFindPrev = () => {
-    if (!editorView) return
-    findPrevious(editorView)
-    editorView.focus()
+    if (wysiwygRef?.current) {
+      const count = wysiwygRef.current.findPrev(searchText, caseSensitive)
+      setMatchCount(count)
+    } else if (editorView) {
+      findPrevious(editorView)
+      editorView.focus()
+    }
   }
 
   const handleReplaceNext = () => {
-    if (!editorView) return
-    const query = new SearchQuery({
-      search: searchText,
-      caseSensitive,
-      regexp: useRegex,
-      replace: replaceText,
-    })
-    editorView.dispatch({ effects: setSearchQuery.of(query) })
-    replaceNext(editorView)
-    applyQuery(searchText, caseSensitive, useRegex)
+    if (wysiwygRef?.current) {
+      wysiwygRef.current.replaceNext(searchText, replaceText, caseSensitive)
+      const count = wysiwygRef.current.countMatches(searchText, caseSensitive)
+      setMatchCount(count)
+    } else if (editorView) {
+      const query = new SearchQuery({ search: searchText, caseSensitive, regexp: useRegex, replace: replaceText })
+      editorView.dispatch({ effects: setSearchQuery.of(query) })
+      replaceNext(editorView)
+      applyQuery(searchText, caseSensitive, useRegex)
+    }
   }
 
   const handleReplaceAll = () => {
-    if (!editorView) return
-    const query = new SearchQuery({
-      search: searchText,
-      caseSensitive,
-      regexp: useRegex,
-      replace: replaceText,
-    })
-    editorView.dispatch({ effects: setSearchQuery.of(query) })
-    replaceAll(editorView)
-    applyQuery(searchText, caseSensitive, useRegex)
+    if (wysiwygRef?.current) {
+      wysiwygRef.current.replaceAll(searchText, replaceText, caseSensitive)
+      setMatchCount(0)
+    } else if (editorView) {
+      const query = new SearchQuery({ search: searchText, caseSensitive, regexp: useRegex, replace: replaceText })
+      editorView.dispatch({ effects: setSearchQuery.of(query) })
+      replaceAll(editorView)
+      applyQuery(searchText, caseSensitive, useRegex)
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

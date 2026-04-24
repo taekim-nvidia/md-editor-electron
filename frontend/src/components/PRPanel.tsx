@@ -1,206 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { marked } from 'marked'
-
-// ── Types ─────────────────────────────────────────────────────────────────────
-
-interface PRAuthor {
-  login: string
-}
-
-interface PRLabel {
-  name: string
-  color: string
-}
-
-interface PR {
-  number: number
-  title: string
-  author: PRAuthor
-  createdAt: string
-  updatedAt: string
-  labels: PRLabel[]
-  isDraft: boolean
-  headRefName: string
-  baseRefName: string
-  state: string
-}
-
-interface PRDetail extends PR {
-  body: string
-  url: string
-  mergedAt?: string
-  reviewDecision?: string
-}
-
-interface PRComment {
-  id: number
-  login: string
-  body: string
-  createdAt: string
-  type: 'comment' | 'review'
-  state?: string
-}
-
-// ── IPC helpers ───────────────────────────────────────────────────────────────
-
-async function runGh(args: string[]): Promise<{ ok: boolean; stdout: string; stderr: string }> {
-  if (!window.electronAPI) return { ok: false, stdout: '', stderr: 'No electronAPI' }
-  return window.electronAPI.runGh(args)
-}
-
-async function runGit(args: string[], cwd: string): Promise<{ ok: boolean; stdout: string; stderr: string }> {
-  if (!window.electronAPI) return { ok: false, stdout: '', stderr: 'No electronAPI' }
-  return window.electronAPI.runGit(args, cwd)
-}
-
-// ── API functions ─────────────────────────────────────────────────────────────
-
-async function apiGhPRs(
-  repo: string,
-  state: string,
-): Promise<{ ok: boolean; prs: PR[]; error?: string }> {
-  const r = await runGh([
-    'pr', 'list', '--repo', repo, '--state', state,
-    '--json', 'number,title,author,updatedAt,state,createdAt,labels,isDraft,headRefName,baseRefName',
-  ])
-  if (!r.ok && !r.stdout) return { ok: false, prs: [], error: r.stderr }
-  try {
-    return { ok: true, prs: JSON.parse(r.stdout) }
-  } catch {
-    return { ok: false, prs: [], error: r.stderr || 'Parse error' }
-  }
-}
-
-async function apiGhPR(
-  repo: string,
-  number: number,
-): Promise<{ ok: boolean; pr: PRDetail; error?: string }> {
-  const r = await runGh([
-    'pr', 'view', String(number), '--repo', repo,
-    '--json', 'number,title,body,state,author,createdAt,updatedAt,headRefName,baseRefName,url,isDraft,mergedAt,reviewDecision,labels',
-  ])
-  if (!r.ok && !r.stdout) return { ok: false, pr: null as unknown as PRDetail, error: r.stderr }
-  try {
-    return { ok: true, pr: JSON.parse(r.stdout) }
-  } catch {
-    return { ok: false, pr: null as unknown as PRDetail, error: r.stderr || 'Parse error' }
-  }
-}
-
-async function apiGhPRComments(
-  repo: string,
-  number: number,
-): Promise<{ ok: boolean; comments: PRComment[]; error?: string }> {
-  const [commentsR, reviewsR] = await Promise.all([
-    runGh(['api', `repos/${repo}/issues/${number}/comments`]),
-    runGh(['api', `repos/${repo}/pulls/${number}/reviews`]),
-  ])
-  const comments: PRComment[] = []
-  try {
-    const raw = JSON.parse(commentsR.stdout || '[]')
-    for (const c of raw) {
-      comments.push({
-        id: c.id,
-        login: c.user?.login ?? 'unknown',
-        body: c.body ?? '',
-        createdAt: c.created_at,
-        type: 'comment',
-      })
-    }
-  } catch {}
-  try {
-    const raw = JSON.parse(reviewsR.stdout || '[]')
-    for (const r of raw) {
-      if (!r.body?.trim()) continue
-      comments.push({
-        id: r.id,
-        login: r.user?.login ?? 'unknown',
-        body: r.body ?? '',
-        createdAt: r.submitted_at,
-        type: 'review',
-        state: r.state,
-      })
-    }
-  } catch {}
-  comments.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-  return { ok: true, comments }
-}
-
-async function apiGhPRComment(
-  repo: string,
-  number: number,
-  body: string,
-): Promise<{ ok: boolean; output: string; error?: string }> {
-  const r = await runGh(['api', `repos/${repo}/issues/${number}/comments`, '-f', `body=${body}`])
-  return { ok: r.ok, output: r.stdout, error: r.ok ? undefined : r.stderr }
-}
-
-async function apiGhPRReview(
-  repo: string,
-  number: number,
-  body: string,
-  event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT',
-): Promise<{ ok: boolean; output: string; error?: string }> {
-  const flagMap: Record<string, string> = {
-    APPROVE: '--approve',
-    REQUEST_CHANGES: '--request-changes',
-    COMMENT: '--comment',
-  }
-  const args = ['pr', 'review', String(number), '--repo', repo, flagMap[event]]
-  if (body.trim()) args.push('--body', body)
-  const r = await runGh(args)
-  return { ok: r.ok, output: r.stdout, error: r.ok ? undefined : r.stderr }
-}
-
-async function apiGhPRCreate(
-  repo: string,
-  title: string,
-  body: string,
-  head: string,
-  base: string,
-): Promise<{ ok: boolean; output: string; url?: string; error?: string }> {
-  const r = await runGh([
-    'pr', 'create', '--repo', repo,
-    '--title', title, '--body', body,
-    '--head', head, '--base', base,
-  ])
-  if (!r.ok) return { ok: false, output: r.stdout + r.stderr, error: r.stderr }
-  const urlMatch = r.stdout.match(/https:\/\/github\.com\/[^\s]+/)
-  return { ok: true, output: r.stdout, url: urlMatch?.[0] }
-}
-
-async function apiGhPRDiff(
-  repo: string,
-  number: number,
-): Promise<{ ok: boolean; diff: string; error?: string }> {
-  const r = await runGh(['pr', 'diff', String(number), '--repo', repo])
-  if (!r.ok) return { ok: false, diff: '', error: r.stderr }
-  return { ok: true, diff: r.stdout }
-}
-
-async function apiGitBranches(
-  cwd: string,
-): Promise<{ ok: boolean; branches: string[] }> {
-  const r = await runGit(['branch', '--format=%(refname:short)'], cwd)
-  if (!r.ok) return { ok: false, branches: [] }
-  const branches = r.stdout.split('\n').map((b) => b.trim()).filter(Boolean)
-  return { ok: true, branches }
-}
-
-async function apiGitCurrentBranch(cwd: string): Promise<string> {
-  const r = await runGit(['branch', '--show-current'], cwd)
-  return r.stdout.trim()
-}
-
-async function apiGitRemoteRepo(cwd: string): Promise<string> {
-  const r = await runGit(['remote', 'get-url', 'origin'], cwd)
-  const url = r.stdout.trim()
-  // Parse owner/repo from SSH or HTTPS git URL
-  const m = url.match(/github\.com[:/]([^/]+\/[^/]+?)(?:\.git)?$/)
-  return m ? m[1] : ''
-}
-
-// ── UI helpers ────────────────────────────────────────────────────────────────
+import {
+  ghPRs,
+  ghPR,
+  ghPRComments,
+  ghPRComment,
+  ghPRReview,
+  ghPRCreate,
+  ghPRDiff,
+  gitBranches,
+  gitRemote,
+  PR,
+  PRDetail,
+  PRComment,
+} from '../lib/api'
 
 interface Props {
   cwd?: string
@@ -263,8 +76,6 @@ function MarkdownBody({ content }: { content: string }) {
 const inputCls =
   'w-full px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:border-indigo-400'
 
-// ── Component ─────────────────────────────────────────────────────────────────
-
 export default function PRPanel({ cwd, onOpenFile }: Props) {
   const [tab, setTab] = useState<Tab>('list')
   const [repo, setRepo] = useState('')
@@ -301,18 +112,25 @@ export default function PRPanel({ cwd, onOpenFile }: Props) {
   // Auto-detect repo and current branch from cwd
   useEffect(() => {
     if (!cwd) return
-    apiGitRemoteRepo(cwd)
-      .then((r) => { if (r) setRepo(r) })
+    gitRemote(cwd)
+      .then((r) => {
+        if (r.ok && r.repo) setRepo(r.repo)
+      })
       .catch(() => {})
-    apiGitCurrentBranch(cwd)
-      .then((branch) => { if (branch) setCreateHead(branch) })
+    fetch(`/api/git/status?cwd=${encodeURIComponent(cwd)}`)
+      .then((r) => r.json())
+      .then((d: { ok: boolean; branch: string }) => {
+        if (d.ok && d.branch) setCreateHead(d.branch)
+      })
       .catch(() => {})
   }, [cwd])
 
   useEffect(() => {
     if (!cwd) return
-    apiGitBranches(cwd)
-      .then((r) => { if (r.ok) setBranches(r.branches) })
+    gitBranches(cwd)
+      .then((r) => {
+        if (r.ok) setBranches(r.branches)
+      })
       .catch(() => {})
   }, [cwd])
 
@@ -321,14 +139,14 @@ export default function PRPanel({ cwd, onOpenFile }: Props) {
     setListLoading(true)
     setListError('')
     try {
-      const data = await apiGhPRs(repo.trim(), prState)
+      const data = await ghPRs(repo.trim(), prState)
       if (data.ok) {
         setPrs(data.prs)
       } else {
         setListError(data.error ?? 'Failed to fetch PRs')
       }
     } catch (e) {
-      setListError('Error: ' + String(e))
+      setListError('Network error: ' + String(e))
     } finally {
       setListLoading(false)
     }
@@ -348,13 +166,13 @@ export default function PRPanel({ cwd, onOpenFile }: Props) {
     setDetailLoading(true)
     try {
       const [detailData, commentsData] = await Promise.all([
-        apiGhPR(repo, pr.number),
-        apiGhPRComments(repo, pr.number),
+        ghPR(repo, pr.number),
+        ghPRComments(repo, pr.number),
       ])
       if (detailData.ok) setSelectedPR(detailData.pr)
       if (commentsData.ok) setComments(commentsData.comments)
     } catch (e) {
-      setActionMsg('Error: ' + String(e))
+      setActionMsg('Network error: ' + String(e))
     } finally {
       setDetailLoading(false)
     }
@@ -364,7 +182,7 @@ export default function PRPanel({ cwd, onOpenFile }: Props) {
     if (!selectedPR || !onOpenFile) return
     setDetailLoading(true)
     try {
-      const data = await apiGhPRDiff(repo, selectedPR.number)
+      const data = await ghPRDiff(repo, selectedPR.number)
       if (data.ok) {
         const filename = `pr-${selectedPR.number}.diff`
         onOpenFile(filename, data.diff, filename)
@@ -372,7 +190,7 @@ export default function PRPanel({ cwd, onOpenFile }: Props) {
         setActionMsg('Error: ' + (data.error ?? 'Failed to fetch diff'))
       }
     } catch (e) {
-      setActionMsg('Error: ' + String(e))
+      setActionMsg('Network error: ' + String(e))
     } finally {
       setDetailLoading(false)
     }
@@ -383,17 +201,17 @@ export default function PRPanel({ cwd, onOpenFile }: Props) {
     setCommentLoading(true)
     setActionMsg('')
     try {
-      const data = await apiGhPRComment(repo, selectedPR.number, commentBody)
+      const data = await ghPRComment(repo, selectedPR.number, commentBody)
       if (data.ok) {
         setCommentBody('')
         setActionMsg('Comment posted!')
-        const commentsData = await apiGhPRComments(repo, selectedPR.number)
+        const commentsData = await ghPRComments(repo, selectedPR.number)
         if (commentsData.ok) setComments(commentsData.comments)
       } else {
         setActionMsg('Error: ' + (data.error ?? 'Failed'))
       }
     } catch (e) {
-      setActionMsg('Error: ' + String(e))
+      setActionMsg('Network error: ' + String(e))
     } finally {
       setCommentLoading(false)
     }
@@ -404,7 +222,7 @@ export default function PRPanel({ cwd, onOpenFile }: Props) {
     setReviewLoading(true)
     setActionMsg('')
     try {
-      const data = await apiGhPRReview(repo, selectedPR.number, reviewBody, event)
+      const data = await ghPRReview(repo, selectedPR.number, reviewBody, event)
       if (data.ok) {
         setReviewBody('')
         setActionMsg('Review submitted!')
@@ -412,7 +230,7 @@ export default function PRPanel({ cwd, onOpenFile }: Props) {
         setActionMsg('Error: ' + (data.error ?? 'Failed'))
       }
     } catch (e) {
-      setActionMsg('Error: ' + String(e))
+      setActionMsg('Network error: ' + String(e))
     } finally {
       setReviewLoading(false)
     }
@@ -423,7 +241,7 @@ export default function PRPanel({ cwd, onOpenFile }: Props) {
     setCreateLoading(true)
     setCreateResult(null)
     try {
-      const data = await apiGhPRCreate(repo.trim(), createTitle, createBody, createHead, createBase)
+      const data = await ghPRCreate(repo.trim(), createTitle, createBody, createHead, createBase)
       setCreateResult({ ok: data.ok, url: data.url, error: data.error })
       if (data.ok) {
         setCreateTitle('')

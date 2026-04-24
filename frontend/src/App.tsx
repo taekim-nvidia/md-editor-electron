@@ -8,6 +8,7 @@ import { EditorView } from '@codemirror/view'
 import { marked } from 'marked'
 
 import { Tab, Theme } from './types'
+import { fetchMarkdownUrl } from './lib/api'
 import TabBar from './components/TabBar'
 import Toolbar from './components/Toolbar'
 import Editor, { EditorRef, SAMPLE_CONTENT } from './components/Editor'
@@ -138,12 +139,12 @@ export default function App() {
   // ── File open ─────────────────────────────────────────────────────────────
   const openFileDialog = async () => {
     if (window.electronAPI) {
-      const filePath = await window.electronAPI.showOpenDialog()
-      if (!filePath) return
+      const paths = await window.electronAPI.showOpenDialog()
+      if (!paths || paths.length === 0) return
+      const filePath = paths[0]
       try {
         const content = await window.electronAPI.readFile(filePath)
-        const filename =
-          filePath.split('/').pop() ?? filePath.split('\\').pop() ?? 'untitled.md'
+        const filename = filePath.split('/').pop() ?? 'file.md'
         const existing = tabs.find((t) => t.filePath === filePath)
         if (existing) {
           setTabs((prev) =>
@@ -163,11 +164,11 @@ export default function App() {
           setActiveTabId(tab.id)
         }
       } catch (e) {
-        alert('Failed to open file: ' + String(e))
+        alert('Error opening file: ' + String(e))
       }
-    } else {
-      fileInputRef.current?.click()
+      return
     }
+    fileInputRef.current?.click()
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -205,29 +206,39 @@ export default function App() {
     const content = activeTab.content
     const filename = activeTab.filename
 
+    // Electron: use native dialog / direct write
     if (window.electronAPI) {
-      // Re-use existing path or prompt for one
-      const filePath =
-        activeTab.filePath ??
-        (await window.electronAPI.showSaveDialog(filename))
-      if (!filePath) return // user cancelled
-      try {
-        await window.electronAPI.writeFile(filePath, content)
-        const newFilename =
-          filePath.split('/').pop() ??
-          filePath.split('\\').pop() ??
-          filename
-        setTabs((prev) =>
-          prev.map((t) =>
-            t.id === activeTabId
-              ? { ...t, originalContent: content, filePath, filename: newFilename, isNew: false }
-              : t
+      if (activeTab.filePath) {
+        try {
+          await window.electronAPI.writeFile(activeTab.filePath, content)
+          setTabs((prev) =>
+            prev.map((t) => (t.id === activeTabId ? { ...t, originalContent: content } : t))
           )
-        )
-      } catch (e) {
-        alert('Failed to save: ' + String(e))
+        } catch (e) {
+          alert('Save failed: ' + String(e))
+        }
+        return
       }
-    } else if ('showSaveFilePicker' in window) {
+      const savePath = await window.electronAPI.showSaveDialog(filename)
+      if (savePath) {
+        try {
+          await window.electronAPI.writeFile(savePath, content)
+          const savedFilename = savePath.split('/').pop() ?? filename
+          setTabs((prev) =>
+            prev.map((t) =>
+              t.id === activeTabId
+                ? { ...t, originalContent: content, filePath: savePath, filename: savedFilename, isNew: false }
+                : t
+            )
+          )
+        } catch (e) {
+          alert('Save failed: ' + String(e))
+        }
+      }
+      return
+    }
+
+    if ('showSaveFilePicker' in window) {
       try {
         const handle = await (window as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> }).showSaveFilePicker({
           suggestedName: filename,
@@ -242,6 +253,7 @@ export default function App() {
         const writable = await handle.createWritable()
         await writable.write(content)
         await writable.close()
+        // Mark as saved
         setTabs((prev) =>
           prev.map((t) =>
             t.id === activeTabId ? { ...t, originalContent: content } : t
@@ -299,23 +311,13 @@ ${body}
   const loadUrl = useCallback(
     async (url: string) => {
       try {
-        let content: string
-        if (window.electronAPI) {
-          const data = await window.electronAPI.fetchUrl(url)
-          if (!data.ok) { alert('Failed to load URL: ' + data.error); return }
-          content = data.content!
+        const data = await fetchMarkdownUrl(url)
+        if (data.ok) {
+          const filename = url.split('/').pop() ?? 'fetched.md'
+          newTab(filename, data.content)
         } else {
-          const res = await fetch('/api/fetch-url', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url }),
-          })
-          const data = await res.json()
-          if (!data.ok) { alert('Failed to load URL: ' + data.error); return }
-          content = data.content
+          alert('Failed to load URL: ' + data.error)
         }
-        const filename = url.split('/').pop() ?? 'fetched.md'
-        newTab(filename, content)
       } catch (e) {
         alert('Network error: ' + String(e))
       }
@@ -370,7 +372,7 @@ ${body}
     [updateActiveTabContent]
   )
 
-  // ── GitHub browser / PR panel: open file ──────────────────────────────────
+  // ── GitHub browser: open file ─────────────────────────────────────────────
   const handleGhOpenFile = useCallback(
     (filename: string, content: string, path: string) => {
       const existing = tabs.find((t) => t.filePath === path)
@@ -452,6 +454,22 @@ ${body}
         }
         return
       }
+      // Font size: Ctrl+= or Ctrl++ to increase, Ctrl+- to decrease, Ctrl+0 to reset
+      if (ctrl && (e.key === '=' || e.key === '+')) {
+        e.preventDefault()
+        setFontSize((s) => Math.min(s + 2, 32))
+        return
+      }
+      if (ctrl && e.key === '-') {
+        e.preventDefault()
+        setFontSize((s) => Math.max(s - 2, 10))
+        return
+      }
+      if (ctrl && e.key === '0') {
+        e.preventDefault()
+        setFontSize(14)
+        return
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -491,6 +509,7 @@ ${body}
       <div className="relative">
         <Toolbar
           editorView={editorView}
+          wysiwygRef={wysiwygRef}
           theme={theme}
           onThemeToggle={toggleTheme}
           onNew={() => newTab()}
@@ -516,7 +535,8 @@ ${body}
       {/* Find & Replace */}
       {showFindReplace && (
         <FindReplace
-          editorView={editorView}
+          editorView={editorMode === 'wysiwyg' ? null : editorView}
+          wysiwygRef={editorMode === 'wysiwyg' ? wysiwygRef : undefined}
           onClose={() => setShowFindReplace(false)}
         />
       )}

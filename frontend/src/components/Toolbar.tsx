@@ -1,10 +1,12 @@
 import React, { useState } from 'react'
 import { EditorView } from '@codemirror/view'
+import type { WysiwygEditorRef } from './WysiwygEditor'
 import { EditorSelection } from '@codemirror/state'
 import { Theme } from '../types'
 
 interface Props {
   editorView: EditorView | null
+  wysiwygRef?: React.RefObject<WysiwygEditorRef | null>
   theme: Theme
   onThemeToggle: () => void
   onNew: () => void
@@ -128,6 +130,7 @@ function Divider() {
 
 export default function Toolbar({
   editorView,
+  wysiwygRef,
   theme,
   onThemeToggle,
   onNew,
@@ -151,12 +154,30 @@ export default function Toolbar({
   const [urlDialogOpen, setUrlDialogOpen] = useState(false)
   const [urlInput, setUrlInput] = useState('')
 
-  const bold = () => editorView && wrapSelection(editorView, '**', '**')
-  const italic = () => editorView && wrapSelection(editorView, '_', '_')
-  const code = () => editorView && wrapSelection(editorView, '`', '`')
-  const h1 = () => editorView && insertLinePrefix(editorView, '# ')
-  const h2 = () => editorView && insertLinePrefix(editorView, '## ')
-  const codeBlock = () => editorView && insertCodeBlock(editorView)
+  const bold = () => {
+    if (wysiwygRef?.current) wysiwygRef.current.toggleBold()
+    else if (editorView) wrapSelection(editorView, '**', '**')
+  }
+  const italic = () => {
+    if (wysiwygRef?.current) wysiwygRef.current.toggleItalic()
+    else if (editorView) wrapSelection(editorView, '_', '_')
+  }
+  const code = () => {
+    if (wysiwygRef?.current) wysiwygRef.current.toggleCode()
+    else if (editorView) wrapSelection(editorView, '`', '`')
+  }
+  const h1 = () => {
+    if (wysiwygRef?.current) wysiwygRef.current.setHeading(1)
+    else if (editorView) insertLinePrefix(editorView, '# ')
+  }
+  const h2 = () => {
+    if (wysiwygRef?.current) wysiwygRef.current.setHeading(2)
+    else if (editorView) insertLinePrefix(editorView, '## ')
+  }
+  const codeBlock = () => {
+    if (wysiwygRef?.current) wysiwygRef.current.toggleCodeBlock()
+    else if (editorView) insertCodeBlock(editorView)
+  }
 
   const submitUrl = () => {
     if (urlInput.trim()) {

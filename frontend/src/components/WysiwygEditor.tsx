@@ -18,6 +18,18 @@ export interface WysiwygEditorRef {
   setMarkdown: (md: string) => void
   getMarkdown: () => string
   scrollTo: (percentage: number) => void
+  // Format commands
+  toggleBold: () => void
+  toggleItalic: () => void
+  toggleCode: () => void
+  setHeading: (level: 1 | 2 | 3) => void
+  toggleCodeBlock: () => void
+  // Find & Replace
+  findNext: (text: string, caseSensitive: boolean) => number
+  findPrev: (text: string, caseSensitive: boolean) => number
+  replaceNext: (find: string, replace: string, caseSensitive: boolean) => void
+  replaceAll: (find: string, replace: string, caseSensitive: boolean) => void
+  countMatches: (text: string, caseSensitive: boolean) => number
 }
 
 interface Props {
@@ -68,6 +80,52 @@ const WysiwygEditor = forwardRef<WysiwygEditorRef, Props>(
           editor.commands.setContent(md, { contentType: 'markdown' })
           isSettingContent.current = false
         },
+        toggleBold:      () => editor?.chain().focus().toggleBold().run(),
+        // Find & Replace using editor text content
+        findNext: (text: string, cs: boolean) => {
+          if (!editor || !text) return 0
+          const content = editor.getText()
+          const flags = cs ? 'g' : 'gi'
+          const matches = [...content.matchAll(new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags))]
+          // Use browser find as visual highlight
+          if ((window as any).find) (window as any).find(text, cs, false, true, false, false, false)
+          return matches.length
+        },
+        findPrev: (text: string, cs: boolean) => {
+          if (!editor || !text) return 0
+          const content = editor.getText()
+          const flags = cs ? 'g' : 'gi'
+          const matches = [...content.matchAll(new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags))]
+          if ((window as any).find) (window as any).find(text, cs, true, true, false, false, false)
+          return matches.length
+        },
+        replaceNext: (find: string, replace: string, cs: boolean) => {
+          if (!editor || !find) return
+          const md = editor.getMarkdown()
+          const idx = cs ? md.indexOf(find) : md.toLowerCase().indexOf(find.toLowerCase())
+          if (idx === -1) return
+          const newMd = md.slice(0, idx) + replace + md.slice(idx + find.length)
+          editor.commands.setContent(newMd, { contentType: 'markdown' })
+        },
+        replaceAll: (find: string, replace: string, cs: boolean) => {
+          if (!editor || !find) return
+          const md = editor.getMarkdown()
+          const flags = cs ? 'g' : 'gi'
+          const newMd = md.replace(new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags), replace)
+          editor.commands.setContent(newMd, { contentType: 'markdown' })
+        },
+        countMatches: (text: string, cs: boolean) => {
+          if (!editor || !text) return 0
+          const doc = editor.getText()
+          const flags = cs ? 'g' : 'gi'
+          try {
+            return [...doc.matchAll(new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), flags))].length
+          } catch { return 0 }
+        },
+        toggleItalic:    () => editor?.chain().focus().toggleItalic().run(),
+        toggleCode:      () => editor?.chain().focus().toggleCode().run(),
+        setHeading:      (level: 1|2|3) => editor?.chain().focus().toggleHeading({ level }).run(),
+        toggleCodeBlock: () => editor?.chain().focus().toggleCodeBlock().run(),
         getMarkdown: () => {
           if (!editor) return ''
           return editor.getMarkdown()
