@@ -12,8 +12,22 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { createLowlight, common } from 'lowlight'
+import { marked } from 'marked'
 
 const lowlight = createLowlight(common)
+
+// Set markdown content safely — fallback to HTML if contentType:'markdown' produces blank
+function setMarkdownSafe(editor: any, md: string) {
+  if (!editor) return
+  setMarkdownSafe(editor, md)
+  // Check if content actually rendered (getText() returns '' for blank doc)
+  requestAnimationFrame(() => {
+    if (editor.getText().trim().length === 0 && md.trim().length > 0) {
+      const html = marked.parse(md) as string
+      editor.commands.setContent(html)
+    }
+  })
+}
 
 export interface WysiwygEditorRef {
   setMarkdown: (md: string) => void
@@ -79,7 +93,7 @@ const WysiwygEditor = forwardRef<WysiwygEditorRef, Props>(
       if (content === lastExternalContent.current) return
       lastExternalContent.current = content
       isSettingContent.current = true
-      editor.commands.setContent(content, { contentType: 'markdown' })
+      setMarkdownSafe(editor, content)
       isSettingContent.current = false
     }, [editor, content])
 
@@ -89,7 +103,7 @@ const WysiwygEditor = forwardRef<WysiwygEditorRef, Props>(
         setMarkdown: (md: string) => {
           if (!editor) return
           isSettingContent.current = true
-          editor.commands.setContent(md, { contentType: 'markdown' })
+          setMarkdownSafe(editor, md)
           isSettingContent.current = false
         },
         toggleBold:      () => editor?.chain().focus().toggleBold().run(),
