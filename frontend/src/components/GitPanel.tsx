@@ -8,7 +8,7 @@ interface GitStatusData {
 
 interface Props {
   cwd?: string
-  onSave?: () => void
+  onSave?: () => Promise<void> | void
 }
 
 export default function GitPanel({ cwd, onSave }: Props) {
@@ -92,10 +92,8 @@ export default function GitPanel({ cwd, onSave }: Props) {
 
   const handleCommit = async () => {
     if (!commitMsg.trim() || !cwdInput) return
-    // Auto-save before committing
-    onSave?.()
-    // Small delay to ensure file is written
-    await new Promise(r => setTimeout(r, 100))
+    // Auto-save before committing and wait for it to complete
+    if (onSave) await Promise.resolve(onSave())
     setLoading(true)
     setOutput('')
     setIsError(false)
