@@ -29,6 +29,18 @@ function createWindow() {
     },
   })
 
+  // Prevent Electron from zooming the webContents with Ctrl+/-
+  win.webContents.on('before-input-event', (event, input) => {
+    if ((input.control || input.meta) && 
+        (input.key === '-' || input.key === '=' || input.key === '+' || input.key === '0')) {
+      event.preventDefault()
+    }
+  })
+
+  // Lock zoom factor to 1 always
+  win.webContents.setZoomFactor(1.0)
+  win.webContents.setVisualZoomLevelLimits(1, 1)
+
   if (isDev) {
     win.loadURL('http://localhost:5173')
     // DevTools only when explicitly requested: Ctrl+Shift+I or --devtools flag
