@@ -99,6 +99,17 @@ export default function App() {
     localStorage.setItem(STORAGE_FONTSIZE_KEY, String(fontSize))
   }, [fontSize])
 
+  // ── Auto-save every 30s if there are unsaved changes ─────────────────────
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const activeTab = tabs.find((t) => t.id === activeTabId)
+      if (activeTab && activeTab.content !== activeTab.originalContent && activeTab.filePath) {
+        saveCurrentTab()
+      }
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [tabs, activeTabId, saveCurrentTab])
+
   // ── Tab helpers ────────────────────────────────────────────────────────────
   const updateActiveTabContent = useCallback(
     (content: string) => {
