@@ -25,10 +25,8 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
   // Auto-navigate to a repo when opened via URL load
   useEffect(() => {
     if (initialRepo && initialRepo.name && initialRepo.path) {
-      setActiveRepo(initialRepo.name)
-      setRepoPath(initialRepo.path)
-      setView('files')
-      loadFiles(initialRepo.path)
+      // Use cloneRepo so all state (repoPath, activeRepo, view, files) is set correctly
+      cloneRepo(initialRepo.name)
     }
   }, [initialRepo?.name])
 
