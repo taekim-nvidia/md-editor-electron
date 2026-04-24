@@ -3,11 +3,12 @@ import { GhRepo, FileEntry } from '../types'
 
 interface Props {
   onOpenFile: (filename: string, content: string, path: string) => void
+  onSave?: () => Promise<void> | void
 }
 
 type View = 'repos' | 'files'
 
-export default function GitHubBrowser({ onOpenFile }: Props) {
+export default function GitHubBrowser({ onOpenFile, onSave }: Props) {
   const [view, setView] = useState<View>('repos')
   const [repos, setRepos] = useState<GhRepo[]>([])
   const [repoPath, setRepoPath] = useState('')
@@ -155,8 +156,9 @@ export default function GitHubBrowser({ onOpenFile }: Props) {
   const commitAndPush = async () => {
     if (!commitMsg.trim()) return
     setLoading(true)
-    setOutput('')
+    setOutput('Saving...')
     try {
+      if (onSave) await Promise.resolve(onSave())
       if (window.electronAPI) {
         const addR = await window.electronAPI.runGit(['add', '-A'], repoPath)
         if (!addR.ok) {

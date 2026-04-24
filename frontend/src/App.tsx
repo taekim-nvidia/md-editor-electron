@@ -657,7 +657,7 @@ ${body}
         )}
 
         {/* GitHub browser panel */}
-        {showGh && <GitHubBrowser onOpenFile={handleGhOpenFile} />}
+        {showGh && <GitHubBrowser onOpenFile={handleGhOpenFile} onSave={saveCurrentTab} />}
 
         {/* PR panel */}
         {showPr && (
