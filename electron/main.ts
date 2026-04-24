@@ -210,15 +210,43 @@ ipcMain.handle('dialog:save', async (_event, defaultPath: string) => {
 
 // ── IPC: fetch URL ────────────────────────────────────────────────────────────
 
-ipcMain.handle('fetch:url', (_event, url: string) => {
-  return new Promise<{ ok: boolean; content?: string; url?: string; error?: string }>((resolve) => {
-    let fetchUrl = url
-    const ghBlob = url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/)
-    if (ghBlob) {
-      const [, owner, repo, branch, filePath] = ghBlob
-      fetchUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`
-    }
+ipcMain.handle('fetch:url', async (_event, url: string) => {
+  // Detect GitHub repo/blob URLs and use gh CLI for private repo support
+  const ghRepo = url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/)
+  const ghBlob = url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/)
+  const ghTree = url.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)\/?$/)
 
+  if (ghBlob) {
+    // Specific file — use gh api to get raw content (works for private repos)
+    const [, owner, repo, branch, filePath] = ghBlob
+    try {
+      const apiPath = `repos/${owner}/${repo}/contents/${filePath}?ref=${branch}`
+      const { stdout } = await execFileAsync('gh', ['api', apiPath, '--jq', '.content'], { timeout: 15000 })
+      const content = Buffer.from(stdout.trim(), 'base64').toString('utf8')
+      return { ok: true, content, url }
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
+  }
+
+  if (ghRepo || ghTree) {
+    // Repo root or tree — fetch README via gh api
+    const match = (ghRepo || ghTree)!
+    const [, owner, repo, branch] = match
+    const ref = branch || 'HEAD'
+    for (const readmeName of ['README.md', 'readme.md', 'README.markdown']) {
+      try {
+        const apiPath = `repos/${owner}/${repo}/contents/${readmeName}?ref=${ref}`
+        const { stdout } = await execFileAsync('gh', ['api', apiPath, '--jq', '.content'], { timeout: 15000 })
+        const content = Buffer.from(stdout.trim(), 'base64').toString('utf8')
+        return { ok: true, content, url }
+      } catch (_) {}
+    }
+    return { ok: false, error: 'No README found in repo' }
+  }
+
+  // Non-GitHub URL — plain HTTP fetch
+  return new Promise<{ ok: boolean; content?: string; url?: string; error?: string }>((resolve) => {
     const doGet = (u: string, redirectsLeft = 3) => {
       const protocol = u.startsWith('https') ? https : http
       protocol.get(u, (res) => {
@@ -229,9 +257,9 @@ ipcMain.handle('fetch:url', (_event, url: string) => {
         if (res.statusCode !== 200) { resolve({ ok: false, error: `HTTP ${res.statusCode}` }); return }
         let data = ''
         res.on('data', (chunk) => (data += chunk))
-        res.on('end', () => resolve({ ok: true, content: data, url: fetchUrl }))
+        res.on('end', () => resolve({ ok: true, content: data, url: u }))
       }).on('error', (e) => resolve({ ok: false, error: e.message }))
     }
-    doGet(fetchUrl)
+    doGet(url)
   })
 })
