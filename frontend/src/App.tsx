@@ -79,6 +79,10 @@ export default function App() {
   const [editorMode, setEditorMode] = useState<'source' | 'wysiwyg'>('source')
 
   const editorRef = useRef<EditorRef>(null)
+  const tabsRef = useRef(tabs)
+  const activeTabIdRef = useRef(activeTabId)
+  useEffect(() => { tabsRef.current = tabs }, [tabs])
+  useEffect(() => { activeTabIdRef.current = activeTabId }, [activeTabId])
   const previewRef = useRef<PreviewRef>(null)
   const wysiwygRef = useRef<WysiwygEditorRef>(null)
   const scrollSyncRef = useRef(true)
@@ -213,8 +217,13 @@ export default function App() {
 
   // ── File save ─────────────────────────────────────────────────────────────
   const saveCurrentTab = useCallback(async () => {
-    console.log('[save] called, activeTab:', activeTab?.filePath ?? 'NULL', 'activeTabId:', activeTabId)
-    if (!activeTab) { console.error('[save] ABORT: activeTab is null'); return }
+    // Always read from refs — never from closure
+    const currentTabs = tabsRef.current
+    const currentActiveTabId = activeTabIdRef.current
+    const currentActiveTab = currentTabs.find(t => t.id === currentActiveTabId)
+    console.log('[save] called, activeTab:', currentActiveTab?.filePath ?? 'NULL', 'activeTabId:', currentActiveTabId)
+    if (!currentActiveTab) { console.error('[save] ABORT: no active tab'); return }
+    const activeTab = currentActiveTab
     // Always get latest content from editor refs at call time
     // editorRef = CodeMirror (source mode), wysiwygRef = Tiptap (wysiwyg mode)
     // Fall back to React state only if both refs are unavailable
@@ -643,7 +652,7 @@ ${body}
                 ? dirName(activeTab.filePath)
                 : undefined
             }
-            onSave={() => saveCurrentTabRef.current()}
+            onSave={saveCurrentTab}
           />
         )}
 
