@@ -93,7 +93,16 @@ export default function GitPanel({ cwd, onSave }: Props) {
   const handleCommit = async () => {
     if (!commitMsg.trim() || !cwdInput) return
     // Auto-save before committing and wait for it to complete
-    if (onSave) await Promise.resolve(onSave())
+    if (onSave) {
+      showOutput('Saving...', false)
+      try {
+        await Promise.resolve(onSave())
+        showOutput('Saved. Running commit...', false)
+      } catch (e) {
+        showOutput('Save failed: ' + String(e), true)
+        return
+      }
+    }
     setLoading(true)
     setOutput('')
     setIsError(false)

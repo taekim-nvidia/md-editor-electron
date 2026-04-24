@@ -225,7 +225,7 @@ export default function App() {
       if (savePath) {
         try {
           await window.electronAPI.writeFile(savePath, content)
-          const savedFilename = savePath.split('/').pop() ?? filename
+          const savedFilename = savePath.split(/[\\/]/).pop() ?? filename
           setTabs((prev) =>
             prev.map((t) =>
               t.id === activeTabId
@@ -618,7 +618,7 @@ ${body}
           <GitPanel
             cwd={
               activeTab?.filePath
-                ? activeTab.filePath.replace(/\/[^/]+$/, '') || '/'
+                ? activeTab.filePath.replace(/[\\/][^\\/]+$/, '') || activeTab.filePath
                 : undefined
             }
             onSave={saveCurrentTab}
