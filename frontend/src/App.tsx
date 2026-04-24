@@ -316,18 +316,22 @@ ${body}
         const data = await fetchMarkdownUrl(url)
         if (data.ok) {
           const filename = url.split('/').pop() ?? 'fetched.md'
-          newTab(filename, data.content)
-          // Push content into Tiptap — retry until editor is ready
+          const tab = newTab(filename, data.content)
+          // Force content into both editors after React settles
           const loadedContent = data.content
-          let attempts = 0
-          const trySet = () => {
-            if (wysiwygRef.current) {
-              wysiwygRef.current.setMarkdown(loadedContent)
-            } else if (attempts++ < 20) {
-              setTimeout(trySet, 100)
-            }
-          }
-          setTimeout(trySet, 50)
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              // Update CodeMirror
+              const view = editorRef.current?.getView()
+              if (view) {
+                view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: loadedContent } })
+              }
+              // Update Tiptap
+              if (wysiwygRef.current) {
+                wysiwygRef.current.setMarkdown(loadedContent)
+              }
+            })
+          })
         } else {
           alert('Failed to load URL: ' + data.error)
         }
