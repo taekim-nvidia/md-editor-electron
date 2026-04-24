@@ -317,10 +317,17 @@ ${body}
         if (data.ok) {
           const filename = url.split('/').pop() ?? 'fetched.md'
           newTab(filename, data.content)
-          // Directly push content into Tiptap after a tick to ensure React state settled
-          setTimeout(() => {
-            wysiwygRef.current?.setMarkdown(data.content)
-          }, 50)
+          // Push content into Tiptap — retry until editor is ready
+          const loadedContent = data.content
+          let attempts = 0
+          const trySet = () => {
+            if (wysiwygRef.current) {
+              wysiwygRef.current.setMarkdown(loadedContent)
+            } else if (attempts++ < 20) {
+              setTimeout(trySet, 100)
+            }
+          }
+          setTimeout(trySet, 50)
         } else {
           alert('Failed to load URL: ' + data.error)
         }

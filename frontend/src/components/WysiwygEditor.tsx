@@ -78,8 +78,6 @@ const WysiwygEditor = forwardRef<WysiwygEditorRef, Props>(
       if (!editor) return
       if (content === lastExternalContent.current) return
       lastExternalContent.current = content
-      const current = editor.getMarkdown()
-      if (current === content) return
       isSettingContent.current = true
       editor.commands.setContent(content, { contentType: 'markdown' })
       isSettingContent.current = false
@@ -90,8 +88,6 @@ const WysiwygEditor = forwardRef<WysiwygEditorRef, Props>(
       () => ({
         setMarkdown: (md: string) => {
           if (!editor) return
-          const current = editor.getMarkdown()
-          if (current === md) return
           isSettingContent.current = true
           editor.commands.setContent(md, { contentType: 'markdown' })
           isSettingContent.current = false
