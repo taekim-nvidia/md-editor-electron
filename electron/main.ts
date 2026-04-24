@@ -29,17 +29,13 @@ function createWindow() {
     },
   })
 
-  // Prevent Electron from zooming the webContents with Ctrl+/-
-  win.webContents.on('before-input-event', (event, input) => {
-    if ((input.control || input.meta) && 
-        (input.key === '-' || input.key === '=' || input.key === '+' || input.key === '0')) {
-      event.preventDefault()
-    }
-  })
-
-  // Lock zoom factor to 1 always
-  win.webContents.setZoomFactor(1.0)
+  // Lock visual zoom to 1 — our app handles font size internally
   win.webContents.setVisualZoomLevelLimits(1, 1)
+  win.webContents.setZoomFactor(1.0)
+  // Re-lock after any navigation
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.setZoomFactor(1.0)
+  })
 
   if (isDev) {
     win.loadURL('http://localhost:5173')
