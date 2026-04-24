@@ -115,7 +115,11 @@ ipcMain.handle('git:run', async (_event, args: string[], cwd: string) => {
     const e = err as NodeJS.ErrnoException & { stdout?: string; stderr?: string }
     const errMsg = (e.stderr || e.stdout || e.message || String(err)).trim()
     console.error('[git:run] FAILED:', errMsg)
-    // Show native dialog — impossible to miss
+    // "nothing to commit" is not a real error — treat as ok
+    if (errMsg.includes('nothing to commit') || errMsg.includes('nothing added to commit')) {
+      return { ok: true, stdout: e.stdout ?? '', stderr: errMsg }
+    }
+    // Show native dialog for real errors
     const win = BrowserWindow.getFocusedWindow()
     if (win) dialog.showErrorBox('Git Error', `git ${args.join(' ')}\n\n${errMsg}`)
     return { ok: false, stdout: e.stdout ?? '', stderr: errMsg }
