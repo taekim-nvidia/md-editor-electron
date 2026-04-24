@@ -1,4 +1,4 @@
-# md-editor-electron
+# markdown-editor
 
 A full-featured Markdown editor built with Electron + React + TypeScript.
 Runs as a native desktop app — no browser needed. Works on Windows, Mac, and Linux.
@@ -95,7 +95,7 @@ gh auth status     # should say: Logged in to github.com
 ## Run the App
 
 ```bash
-git clone https://github.com/taekim-nvidia/md-editor-electron.git
+git clone https://github.com/NVIDIA-dev/markdown-editor.git
 cd md-editor-electron
 npm install
 npm run dev
