@@ -73,6 +73,7 @@ export default function App() {
   const [showFindReplace, setShowFindReplace] = useState(false)
   const [showGit, setShowGit] = useState(false)
   const [showGh, setShowGh] = useState(false)
+  const [ghActiveRepo, setGhActiveRepo] = useState<{name: string, path: string} | null>(null)
   const [showPr, setShowPr] = useState(false)
   type Layout = 'split-h' | 'split-v' | 'editor' | 'preview'
   const [layout, setLayout] = useState<Layout>('split-h')
@@ -324,7 +325,7 @@ ${body}
           if (!cloneResult.ok) { alert('Failed to clone: ' + cloneResult.error); return }
 
           // Determine file path inside the clone
-          const repoPath = cloneResult.path
+          const repoPath = cloneResult.path!
           let filePath: string
           if (ghBlob) {
             filePath = repoPath + '/' + ghBlob[4]
@@ -335,6 +336,8 @@ ${body}
               try {
                 const content = await window.electronAPI.readFile(candidate)
                 handleGhOpenFile(name, content, candidate)
+                setShowGh(true)
+                setGhActiveRepo({ name: nameWithOwner, path: repoPath })
                 return
               } catch (_) {}
             }
@@ -345,6 +348,9 @@ ${body}
           const content = await window.electronAPI.readFile(filePath)
           const filename = filePath.split('/').pop() ?? 'file.md'
           handleGhOpenFile(filename, content, filePath)
+          // Open GH browser panel pointing to this repo
+          setShowGh(true)
+          setGhActiveRepo({ name: nameWithOwner, path: repoPath })
           return
         }
 
@@ -661,7 +667,7 @@ ${body}
         )}
 
         {/* GitHub browser panel */}
-        {showGh && <GitHubBrowser onOpenFile={handleGhOpenFile} />}
+        {showGh && <GitHubBrowser onOpenFile={handleGhOpenFile} onSave={saveCurrentTab} initialRepo={ghActiveRepo ?? undefined} />}
 
         {/* PR panel */}
         {showPr && (

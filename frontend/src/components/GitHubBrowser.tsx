@@ -4,11 +4,13 @@ import { GhRepo, FileEntry } from '../types'
 interface Props {
   onOpenFile: (filename: string, content: string, path: string) => void
   onSave?: () => Promise<void> | void
+  onRepoLoaded?: (nameWithOwner: string, repoPath: string) => void
+  initialRepo?: { name: string, path: string }
 }
 
 type View = 'repos' | 'files'
 
-export default function GitHubBrowser({ onOpenFile, onSave }: Props) {
+export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initialRepo }: Props) {
   const [view, setView] = useState<View>('repos')
   const [repos, setRepos] = useState<GhRepo[]>([])
   const [repoPath, setRepoPath] = useState('')
@@ -19,6 +21,16 @@ export default function GitHubBrowser({ onOpenFile, onSave }: Props) {
   const [loading, setLoading] = useState(false)
   const [output, setOutput] = useState('')
   const [commitMsg, setCommitMsg] = useState('')
+
+  // Auto-navigate to a repo when opened via URL load
+  useEffect(() => {
+    if (initialRepo && initialRepo.name && initialRepo.path) {
+      setActiveRepo(initialRepo.name)
+      setRepoPath(initialRepo.path)
+      setView('files')
+      loadFiles(initialRepo.path)
+    }
+  }, [initialRepo?.name])
 
   const fetchRepos = async () => {
     setLoading(true)
