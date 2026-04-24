@@ -211,11 +211,13 @@ export default function App() {
   // ── File save ─────────────────────────────────────────────────────────────
   const saveCurrentTab = useCallback(async () => {
     if (!activeTab) return
-    // Get latest content directly from editor refs — not stale React state
-    // This ensures we save what's actually in the editor, not what React last rendered
-    const latestContent = editorRef.current?.getView()?.state.doc.toString()
-      ?? wysiwygRef.current?.getMarkdown()
-      ?? activeTab.content
+    // Always get latest content from editor refs at call time
+    // editorRef = CodeMirror (source mode), wysiwygRef = Tiptap (wysiwyg mode)
+    // Fall back to React state only if both refs are unavailable
+    const fromCodeMirror = editorRef.current?.getView()?.state.doc.toString()
+    const fromTiptap = wysiwygRef.current?.getMarkdown?.()
+    const latestContent = fromCodeMirror ?? fromTiptap ?? activeTab.content
+    console.log('[save] source:', fromCodeMirror ? 'codemirror' : fromTiptap ? 'tiptap' : 'react-state')
     const content = latestContent
     const filename = activeTab.filename
 
