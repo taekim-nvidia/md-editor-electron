@@ -223,7 +223,10 @@ export default function App() {
     if (window.electronAPI) {
       if (activeTab.filePath) {
         try {
+          console.log('[save] writing', content.length, 'bytes to:', activeTab.filePath)
+          console.log('[save] first 100 chars:', content.slice(0, 100))
           await window.electronAPI.writeFile(activeTab.filePath, content)
+          console.log('[save] write complete')
           setTabs((prev) =>
             prev.map((t) => (t.id === activeTabId ? { ...t, content, originalContent: content } : t))
           )
