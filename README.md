@@ -103,6 +103,11 @@ npm run dev
 
 The app opens as a native window.
 
+**Debug mode** (enables DevTools):
+```bash
+npm run dev -- --devtools
+```
+
 ---
 
 ## Feature Guide
