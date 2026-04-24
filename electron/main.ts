@@ -40,9 +40,7 @@ function createWindow() {
   if (isDev) {
     win.loadURL('http://localhost:5173')
     // DevTools only when explicitly requested: Ctrl+Shift+I or --devtools flag
-    if (process.argv.includes('--devtools')) {
-      win.webContents.openDevTools()
-    }
+    win.webContents.openDevTools()  // temp: always open for debugging
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'))
   }
