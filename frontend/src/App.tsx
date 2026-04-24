@@ -221,7 +221,6 @@ export default function App() {
     const currentTabs = tabsRef.current
     const currentActiveTabId = activeTabIdRef.current
     const currentActiveTab = currentTabs.find(t => t.id === currentActiveTabId)
-    console.log('[save] called, activeTab:', currentActiveTab?.filePath ?? 'NULL', 'activeTabId:', currentActiveTabId)
     if (!currentActiveTab) { console.error('[save] ABORT: no active tab'); return }
     const activeTab = currentActiveTab
     // Always get latest content from editor refs at call time
@@ -230,7 +229,6 @@ export default function App() {
     const fromCodeMirror = editorRef.current?.getView()?.state.doc.toString()
     const fromTiptap = wysiwygRef.current?.getMarkdown?.()
     const latestContent = fromCodeMirror ?? fromTiptap ?? activeTab.content
-    console.log('[save] source:', fromCodeMirror ? 'codemirror' : fromTiptap ? 'tiptap' : 'react-state')
     const content = latestContent
     const filename = activeTab.filename
 
@@ -238,11 +236,8 @@ export default function App() {
     if (window.electronAPI) {
       if (activeTab.filePath) {
         try {
-          console.log('[save] writing', content.length, 'bytes to:', activeTab.filePath)
-          console.log('[save] first 100 chars:', content.slice(0, 100))
-          await window.electronAPI.writeFile(activeTab.filePath, content)
-          console.log('[save] write complete')
-          setTabs((prev) =>
+                      await window.electronAPI.writeFile(activeTab.filePath, content)
+                setTabs((prev) =>
             prev.map((t) => (t.id === activeTabId ? { ...t, content, originalContent: content } : t))
           )
         } catch (e) {
