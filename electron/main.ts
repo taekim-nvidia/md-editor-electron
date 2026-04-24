@@ -41,8 +41,48 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  // Remove default menu so Electron doesn't intercept Ctrl+/- for zoom
-  Menu.setApplicationMenu(null)
+  // Custom menu — removes default zoom shortcuts (Ctrl+/-)
+  // so our font size controls work correctly
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: 'File',
+      submenu: [
+        { role: 'quit' }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+        // Intentionally omit zoom in/out — handled by our app
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { role: 'close' },
+      ]
+    }
+  ]
+  const menu = Menu.buildFromTemplate(template)
+  Menu.setApplicationMenu(menu)
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
