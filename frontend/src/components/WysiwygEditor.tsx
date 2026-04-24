@@ -16,17 +16,11 @@ import { marked } from 'marked'
 
 const lowlight = createLowlight(common)
 
-// Set markdown content safely — fallback to HTML if contentType:'markdown' produces blank
+// Set markdown content — parse to HTML via marked for reliable rendering
 function setMarkdownSafe(editor: any, md: string) {
   if (!editor) return
-  setMarkdownSafe(editor, md)
-  // Check if content actually rendered (getText() returns '' for blank doc)
-  requestAnimationFrame(() => {
-    if (editor.getText().trim().length === 0 && md.trim().length > 0) {
-      const html = marked.parse(md) as string
-      editor.commands.setContent(html)
-    }
-  })
+  const html = marked.parse(md) as string
+  editor.commands.setContent(html)
 }
 
 export interface WysiwygEditorRef {
