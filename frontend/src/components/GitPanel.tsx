@@ -15,8 +15,16 @@ export default function GitPanel({ cwd }: Props) {
   const [commitMsg, setCommitMsg] = useState('')
   const [addAll, setAddAll] = useState(true)
   const [output, setOutput] = useState('')
+  const [isError, setIsError] = useState(false)
   const [loading, setLoading] = useState(false)
   const [cwdInput, setCwdInput] = useState(cwd ?? '')
+
+  const showOutput = (msg: string, error: boolean) => {
+    const text = msg.trim() || (error ? 'Unknown error' : 'Done')
+    console.log('[GitPanel]', error ? 'ERROR:' : 'OK:', text)
+    setOutput(text)
+    setIsError(error)
+  }
 
   const fetchStatus = useCallback(async () => {
     if (!cwdInput) return
@@ -34,22 +42,17 @@ export default function GitPanel({ cwd }: Props) {
             branch: branchRes.stdout.trim(),
             log: logRes.stdout.trim(),
           })
-          setOutput('')
         } else {
-          setOutput('Error: ' + (statusRes.stderr || 'git status failed'))
+          showOutput(statusRes.stderr || statusRes.stdout || 'git status failed', true)
         }
       } else {
         const res = await fetch(`/api/git/status?cwd=${encodeURIComponent(cwdInput)}`)
         const data = await res.json()
-        if (data.ok) {
-          setStatusData(data)
-          setOutput('')
-        } else {
-          setOutput('Error: ' + data.error)
-        }
+        if (data.ok) setStatusData(data)
+        else showOutput(data.error || 'git status failed', true)
       }
     } catch (e) {
-      setOutput('Network error: ' + String(e))
+      showOutput(String(e), true)
     } finally {
       setLoading(false)
     }
@@ -59,70 +62,51 @@ export default function GitPanel({ cwd }: Props) {
     if (cwdInput) fetchStatus()
   }, [cwdInput, fetchStatus])
 
-  // Run a single git command (pull / push) with web fallback
-  const runGitOp = useCallback(
-    async (
-      electronArgs: string[],
-      webEndpoint: string,
-      webBody?: Record<string, unknown>
-    ) => {
-      setLoading(true)
-      setOutput('')
-      try {
-        let ok = false
-        let out = ''
-        if (window.electronAPI) {
-          const r = await window.electronAPI.runGit(electronArgs, cwdInput)
-          ok = r.ok
-          out = r.ok
-            ? r.stdout + (r.stderr ? '\n' + r.stderr : '')
-            : 'Error: ' + r.stderr
-        } else {
-          const res = await fetch(webEndpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cwd: cwdInput, ...webBody }),
-          })
-          const data = await res.json()
-          ok = data.ok
-          out = data.ok ? data.output : 'Error: ' + data.error
-        }
-        setOutput(out)
-        if (ok) fetchStatus()
-      } catch (e) {
-        setOutput('Network error: ' + String(e))
-      } finally {
-        setLoading(false)
+  const runGitOp = useCallback(async (electronArgs: string[], webEndpoint: string) => {
+    setLoading(true)
+    setOutput('')
+    setIsError(false)
+    try {
+      if (window.electronAPI) {
+        const r = await window.electronAPI.runGit(electronArgs, cwdInput)
+        const msg = (r.stdout + '\n' + r.stderr).trim()
+        showOutput(msg || (r.ok ? 'Done' : 'Failed'), !r.ok)
+        if (r.ok) fetchStatus()
+      } else {
+        const res = await fetch(webEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cwd: cwdInput }),
+        })
+        const data = await res.json()
+        showOutput(data.ok ? data.output : data.error || 'Failed', !data.ok)
+        if (data.ok) fetchStatus()
       }
-    },
-    [cwdInput, fetchStatus]
-  )
+    } catch (e) {
+      showOutput(String(e), true)
+    } finally {
+      setLoading(false)
+    }
+  }, [cwdInput, fetchStatus])
 
   const handleCommit = async () => {
     if (!commitMsg.trim() || !cwdInput) return
     setLoading(true)
     setOutput('')
+    setIsError(false)
     try {
       if (window.electronAPI) {
         if (addAll) {
           const addR = await window.electronAPI.runGit(['add', '-A'], cwdInput)
           if (!addR.ok) {
-            const addMsg = (addR.stdout + '\n' + addR.stderr).trim()
-            setOutput('git add failed: ' + (addMsg || 'unknown error'))
-            setIsError(true)
-            console.error('[GitPanel add] failed:', addR)
+            showOutput('git add failed:\n' + (addR.stderr || addR.stdout || 'unknown'), true)
             return
           }
         }
-        const r = await window.electronAPI.runGit(
-          ['commit', '-m', commitMsg],
-          cwdInput
-        )
+        const r = await window.electronAPI.runGit(['commit', '-m', commitMsg], cwdInput)
         const msg = (r.stdout + '\n' + r.stderr).trim()
-        console.error('[GitPanel commit] result:', r)
-        setOutput(msg || (r.ok ? 'Committed.' : 'Commit failed'))
-        setIsError(!r.ok)
-        if (r.ok) fetchStatus()
+        showOutput(msg || (r.ok ? 'Committed.' : 'Commit failed'), !r.ok)
+        if (r.ok) { setCommitMsg(''); fetchStatus() }
       } else {
         const res = await fetch('/api/git/commit', {
           method: 'POST',
@@ -130,11 +114,11 @@ export default function GitPanel({ cwd }: Props) {
           body: JSON.stringify({ cwd: cwdInput, message: commitMsg, addAll }),
         })
         const data = await res.json()
-        setOutput(data.ok ? data.output : 'Error: ' + data.error)
-        if (data.ok) fetchStatus()
+        showOutput(data.ok ? data.output : data.error || 'Commit failed', !data.ok)
+        if (data.ok) { setCommitMsg(''); fetchStatus() }
       }
     } catch (e) {
-      setOutput('Network error: ' + String(e))
+      showOutput(String(e), true)
     } finally {
       setLoading(false)
     }
@@ -153,11 +137,10 @@ export default function GitPanel({ cwd }: Props) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
+
         {/* Working dir */}
         <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            Working directory
-          </label>
+          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Working directory</label>
           <div className="flex gap-1">
             <input
               type="text"
@@ -166,102 +149,82 @@ export default function GitPanel({ cwd }: Props) {
               placeholder="/path/to/repo"
               className="flex-1 px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:border-indigo-400"
             />
-            <button
-              onClick={fetchStatus}
-              disabled={loading}
-              className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
-            >
+            <button onClick={fetchStatus} disabled={loading}
+              className="px-2 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200">
               ↻
             </button>
           </div>
         </div>
 
-        {/* Git status */}
+        {/* Status */}
         {statusData && (
           <div>
             <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Status</div>
-            <pre className="text-xs bg-gray-50 dark:bg-gray-800 rounded p-2 overflow-x-auto whitespace-pre-wrap text-gray-700 dark:text-gray-300 max-h-32">
+            <pre className="text-xs bg-gray-50 dark:bg-gray-800 rounded p-2 whitespace-pre-wrap text-gray-700 dark:text-gray-300 max-h-32 overflow-y-auto">
               {statusData.status || '(clean)'}
             </pre>
           </div>
         )}
 
-        {/* Actions */}
+        {/* Pull / Push */}
         <div className="flex gap-2">
-          <button
-            onClick={() => runGitOp(['pull'], '/api/git/pull')}
+          <button onClick={() => runGitOp(['pull'], '/api/git/pull')}
             disabled={loading || !cwdInput}
-            className="flex-1 py-1.5 text-xs rounded bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 disabled:opacity-50"
-          >
+            className="flex-1 py-1.5 text-xs rounded bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 disabled:opacity-50">
             Pull
           </button>
-          <button
-            onClick={() => runGitOp(['push'], '/api/git/push')}
+          <button onClick={() => runGitOp(['push'], '/api/git/push')}
             disabled={loading || !cwdInput}
-            className="flex-1 py-1.5 text-xs rounded bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 text-green-700 dark:text-green-300 disabled:opacity-50"
-          >
+            className="flex-1 py-1.5 text-xs rounded bg-green-50 dark:bg-green-900/30 hover:bg-green-100 dark:hover:bg-green-900/50 text-green-700 dark:text-green-300 disabled:opacity-50">
             Push
           </button>
         </div>
 
         {/* Commit */}
         <div>
-          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-            Commit message
-          </label>
-          <textarea
-            value={commitMsg}
-            onChange={(e) => setCommitMsg(e.target.value)}
-            placeholder="feat: add awesome feature"
+          <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Commit message</label>
+          <textarea value={commitMsg} onChange={(e) => setCommitMsg(e.target.value)}
+            placeholder="feat: your change"
             rows={2}
-            className="w-full px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:border-indigo-400 resize-none"
-          />
+            className="w-full px-2 py-1 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:border-indigo-400 resize-none" />
           <div className="flex items-center gap-2 mt-1.5">
             <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={addAll}
-                onChange={(e) => setAddAll(e.target.checked)}
-                className="accent-indigo-500"
-              />
+              <input type="checkbox" checked={addAll} onChange={(e) => setAddAll(e.target.checked)} className="accent-indigo-500" />
               git add -A
             </label>
-            <button
-              onClick={handleCommit}
-              disabled={loading || !commitMsg.trim() || !cwdInput}
-              className="ml-auto px-3 py-1 text-xs rounded bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50"
-            >
+            <button onClick={handleCommit} disabled={loading || !commitMsg.trim() || !cwdInput}
+              className="ml-auto px-3 py-1 text-xs rounded bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50">
               Commit
             </button>
           </div>
         </div>
 
-        {/* Recent log */}
+        {/* Recent commits */}
         {statusData?.log && (
           <div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Recent commits
-            </div>
-            <pre className="text-xs bg-gray-50 dark:bg-gray-800 rounded p-2 overflow-x-auto whitespace-pre-wrap text-gray-600 dark:text-gray-400 max-h-32">
+            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Recent commits</div>
+            <pre className="text-xs bg-gray-50 dark:bg-gray-800 rounded p-2 whitespace-pre-wrap text-gray-600 dark:text-gray-400 max-h-32 overflow-y-auto">
               {statusData.log}
             </pre>
           </div>
         )}
 
-        {/* Output */}
+        {/* Output — ALWAYS visible when set, red on error */}
         {output && (
-          <div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Output</div>
-            <pre className="text-xs bg-gray-50 dark:bg-gray-800 rounded p-2 overflow-x-auto whitespace-pre-wrap text-gray-700 dark:text-gray-300 max-h-40">
+          <div className={`rounded p-2 border ${isError
+            ? 'bg-red-50 dark:bg-red-900/30 border-red-400 dark:border-red-600'
+            : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'}`}>
+            {isError && <div className="text-xs font-bold text-red-600 dark:text-red-400 mb-1">ERROR</div>}
+            <pre className={`text-xs whitespace-pre-wrap break-all ${isError
+              ? 'text-red-700 dark:text-red-300'
+              : 'text-gray-700 dark:text-gray-300'}`}>
               {output}
             </pre>
           </div>
         )}
 
         {loading && (
-          <div className="text-xs text-center text-gray-400 dark:text-gray-500 animate-pulse">
-            Running…
-          </div>
+          <div className="text-xs text-center text-gray-400 animate-pulse">Running…</div>
         )}
       </div>
     </div>
