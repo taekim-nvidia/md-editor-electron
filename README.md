@@ -96,7 +96,7 @@ gh auth status     # should say: Logged in to github.com
 
 ```bash
 git clone https://github.com/NVIDIA-dev/markdown-editor.git
-cd md-editor-electron
+cd markdown-editor
 npm install
 npm run dev
 ```

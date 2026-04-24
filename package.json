@@ -1,5 +1,5 @@
 {
-  "name": "md-editor-electron",
+  "name": "markdown-editor",
   "private": true,
   "main": "dist-electron/main.js",
   "workspaces": [
@@ -21,7 +21,7 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-    "appId": "com.nvidia.md-editor",
+    "appId": "com.nvidia.markdown-editor",
     "productName": "MD Editor",
     "files": [
       "dist/**/*",

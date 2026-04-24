@@ -79,10 +79,6 @@ export default function App() {
   const [editorMode, setEditorMode] = useState<'source' | 'wysiwyg'>('source')
 
   const editorRef = useRef<EditorRef>(null)
-  const tabsRef = useRef(tabs)
-  const activeTabIdRef = useRef(activeTabId)
-  useEffect(() => { tabsRef.current = tabs }, [tabs])
-  useEffect(() => { activeTabIdRef.current = activeTabId }, [activeTabId])
   const previewRef = useRef<PreviewRef>(null)
   const wysiwygRef = useRef<WysiwygEditorRef>(null)
   const scrollSyncRef = useRef(true)
@@ -104,9 +100,6 @@ export default function App() {
   }, [fontSize])
 
   // Auto-save on commit only (no timer)
-
-  // Keep a stable ref to saveCurrentTab so GitPanel always calls the latest version
-  const saveCurrentTabRef = useRef<() => Promise<void>>(async () => {})
 
   // ── Tab helpers ────────────────────────────────────────────────────────────
   const updateActiveTabContent = useCallback(
@@ -209,36 +202,19 @@ export default function App() {
     e.target.value = ''
   }
 
-  // Cross-platform directory extraction (handles both / and \ separators)
-  const dirName = (filePath: string) => {
-    const i = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
-    return i > 0 ? filePath.slice(0, i) : filePath
-  }
-
   // ── File save ─────────────────────────────────────────────────────────────
   const saveCurrentTab = useCallback(async () => {
-    // Always read from refs — never from closure
-    const currentTabs = tabsRef.current
-    const currentActiveTabId = activeTabIdRef.current
-    const currentActiveTab = currentTabs.find(t => t.id === currentActiveTabId)
-    if (!currentActiveTab) { console.error('[save] ABORT: no active tab'); return }
-    const activeTab = currentActiveTab
-    // Always get latest content from editor refs at call time
-    // editorRef = CodeMirror (source mode), wysiwygRef = Tiptap (wysiwyg mode)
-    // Fall back to React state only if both refs are unavailable
-    const fromCodeMirror = editorRef.current?.getView()?.state.doc.toString()
-    const fromTiptap = wysiwygRef.current?.getMarkdown?.()
-    const latestContent = fromCodeMirror ?? fromTiptap ?? activeTab.content
-    const content = latestContent
+    if (!activeTab) return
+    const content = activeTab.content
     const filename = activeTab.filename
 
     // Electron: use native dialog / direct write
     if (window.electronAPI) {
       if (activeTab.filePath) {
         try {
-                      await window.electronAPI.writeFile(activeTab.filePath, content)
-                setTabs((prev) =>
-            prev.map((t) => (t.id === activeTabId ? { ...t, content, originalContent: content } : t))
+          await window.electronAPI.writeFile(activeTab.filePath, content)
+          setTabs((prev) =>
+            prev.map((t) => (t.id === activeTabId ? { ...t, originalContent: content } : t))
           )
         } catch (e) {
           alert('Save failed: ' + String(e))
@@ -249,7 +225,7 @@ export default function App() {
       if (savePath) {
         try {
           await window.electronAPI.writeFile(savePath, content)
-          const savedFilename = savePath.split(/[\\/]/).pop() ?? filename
+          const savedFilename = savePath.split('/').pop() ?? filename
           setTabs((prev) =>
             prev.map((t) =>
               t.id === activeTabId
@@ -304,8 +280,6 @@ export default function App() {
       )
     }
   }, [activeTab, activeTabId])
-  // Keep ref always pointing to latest saveCurrentTab
-  useEffect(() => { saveCurrentTabRef.current = saveCurrentTab }, [saveCurrentTab])
 
   // ── HTML export ───────────────────────────────────────────────────────────
   const exportHtml = useCallback(() => {
@@ -644,7 +618,7 @@ ${body}
           <GitPanel
             cwd={
               activeTab?.filePath
-                ? dirName(activeTab.filePath)
+                ? activeTab.filePath.replace(/\/[^/]+$/, '') || '/'
                 : undefined
             }
             onSave={saveCurrentTab}
@@ -652,14 +626,14 @@ ${body}
         )}
 
         {/* GitHub browser panel */}
-        {showGh && <GitHubBrowser onOpenFile={handleGhOpenFile} onSave={saveCurrentTab} />}
+        {showGh && <GitHubBrowser onOpenFile={handleGhOpenFile} />}
 
         {/* PR panel */}
         {showPr && (
           <PRPanel
             cwd={
               activeTab?.filePath
-                ? dirName(activeTab.filePath)
+                ? activeTab.filePath.replace(/\/[^/]+$/, '') || '/'
                 : undefined
             }
             onOpenFile={handleGhOpenFile}
