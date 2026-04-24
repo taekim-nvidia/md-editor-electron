@@ -211,7 +211,12 @@ export default function App() {
   // ── File save ─────────────────────────────────────────────────────────────
   const saveCurrentTab = useCallback(async () => {
     if (!activeTab) return
-    const content = activeTab.content
+    // Get latest content directly from editor refs — not stale React state
+    // This ensures we save what's actually in the editor, not what React last rendered
+    const latestContent = editorRef.current?.getView()?.state.doc.toString()
+      ?? wysiwygRef.current?.getMarkdown()
+      ?? activeTab.content
+    const content = latestContent
     const filename = activeTab.filename
 
     // Electron: use native dialog / direct write
@@ -220,7 +225,7 @@ export default function App() {
         try {
           await window.electronAPI.writeFile(activeTab.filePath, content)
           setTabs((prev) =>
-            prev.map((t) => (t.id === activeTabId ? { ...t, originalContent: content } : t))
+            prev.map((t) => (t.id === activeTabId ? { ...t, content, originalContent: content } : t))
           )
         } catch (e) {
           alert('Save failed: ' + String(e))
