@@ -299,6 +299,8 @@ export default function App() {
       )
     }
   }, [activeTab, activeTabId])
+  // Keep ref always pointing to latest saveCurrentTab
+  useEffect(() => { saveCurrentTabRef.current = saveCurrentTab }, [saveCurrentTab])
 
   // ── HTML export ───────────────────────────────────────────────────────────
   const exportHtml = useCallback(() => {
