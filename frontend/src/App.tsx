@@ -552,7 +552,6 @@ ${body}
         {editorMode === 'wysiwyg' ? (
           <div className="flex-1 overflow-hidden">
             <WysiwygEditor
-              key={activeTabId}
               ref={wysiwygRef}
               content={activeTab?.content ?? ''}
               onChange={handleWysiwygChange}
