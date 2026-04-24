@@ -139,9 +139,9 @@ export default function App() {
   // ── File open ─────────────────────────────────────────────────────────────
   const openFileDialog = async () => {
     if (window.electronAPI) {
-      const paths = await window.electronAPI.showOpenDialog()
-      if (!paths || paths.length === 0) return
-      const filePath = paths[0]
+      // Electron: showOpenDialog returns string | null (single path)
+      const filePath = await window.electronAPI.showOpenDialog()
+      if (!filePath) return
       try {
         const content = await window.electronAPI.readFile(filePath)
         const filename = filePath.split('/').pop() ?? 'file.md'

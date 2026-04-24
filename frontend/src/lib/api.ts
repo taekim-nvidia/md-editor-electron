@@ -63,9 +63,9 @@ export async function gitStatus(cwd: string): Promise<GitStatusResult> {
   if (isElectron()) {
     try {
       const [statusRes, branchRes, logRes] = await Promise.all([
-        window.electronAPI!.git(['status', '--porcelain'], cwd),
-        window.electronAPI!.git(['branch', '--show-current'], cwd),
-        window.electronAPI!.git(['log', '--oneline', '-10'], cwd).catch(() => ({ stdout: '', stderr: '', code: 0 })),
+        window.electronAPI!.runGit(['status', '--porcelain'], cwd),
+        window.electronAPI!.runGit(['branch', '--show-current'], cwd),
+        window.electronAPI!.runGit(['log', '--oneline', '-10'], cwd).catch(() => ({ ok: true, stdout: '', stderr: '' })),
       ])
       return {
         ok: true,
@@ -84,8 +84,8 @@ export async function gitStatus(cwd: string): Promise<GitStatusResult> {
 export async function gitPull(cwd: string): Promise<ActionResult> {
   if (isElectron()) {
     try {
-      const r = await window.electronAPI!.git(['pull'], cwd)
-      return { ok: r.code === 0, output: r.stdout + r.stderr }
+      const r = await window.electronAPI!.runGit(['pull'], cwd)
+      return { ok: r.ok, output: r.stdout + r.stderr }
     } catch (err) {
       return { ok: false, output: '', error: String(err) }
     }
@@ -101,8 +101,8 @@ export async function gitPull(cwd: string): Promise<ActionResult> {
 export async function gitPush(cwd: string): Promise<ActionResult> {
   if (isElectron()) {
     try {
-      const r = await window.electronAPI!.git(['push'], cwd)
-      return { ok: r.code === 0, output: r.stdout + r.stderr }
+      const r = await window.electronAPI!.runGit(['push'], cwd)
+      return { ok: r.ok, output: r.stdout + r.stderr }
     } catch (err) {
       return { ok: false, output: '', error: String(err) }
     }
@@ -119,10 +119,10 @@ export async function gitCommit(cwd: string, message: string, addAll?: boolean):
   if (isElectron()) {
     try {
       if (addAll) {
-        await window.electronAPI!.git(['add', '-A'], cwd)
+        await window.electronAPI!.runGit(['add', '-A'], cwd)
       }
-      const r = await window.electronAPI!.git(['commit', '-m', message], cwd)
-      return { ok: r.code === 0, output: r.stdout + r.stderr }
+      const r = await window.electronAPI!.runGit(['commit', '-m', message], cwd)
+      return { ok: r.ok, output: r.stdout + r.stderr }
     } catch (err) {
       return { ok: false, output: '', error: String(err) }
     }
@@ -140,11 +140,11 @@ export async function gitCommit(cwd: string, message: string, addAll?: boolean):
 export async function ghRepos(): Promise<{ ok: boolean; repos: GhRepo[]; error?: string }> {
   if (isElectron()) {
     try {
-      const r = await window.electronAPI!.gh([
+      const r = await window.electronAPI!.runGh([
         'repo', 'list', '--limit', '50',
         '--json', 'nameWithOwner,description,isPrivate,updatedAt',
       ])
-      if (r.code !== 0) return { ok: false, repos: [], error: r.stderr }
+      if (!r.ok) return { ok: false, repos: [], error: r.stderr }
       return { ok: true, repos: JSON.parse(r.stdout) }
     } catch (err) {
       return { ok: false, repos: [], error: String(err) }
@@ -161,13 +161,13 @@ export async function ghClone(repo: string): Promise<CloneResult> {
     try {
       // If readDir succeeds the directory already exists — pull instead
       await window.electronAPI!.readDir(destPath)
-      const r = await window.electronAPI!.git(['pull'], destPath)
-      return { ok: r.code === 0, path: destPath, output: r.stdout + r.stderr, action: 'pulled' }
+      const r = await window.electronAPI!.runGit(['pull'], destPath)
+      return { ok: r.ok, path: destPath, output: r.stdout + r.stderr, action: 'pulled' }
     } catch {
       // Directory doesn't exist yet — clone it
       try {
-        const r = await window.electronAPI!.gh(['repo', 'clone', repo, destPath])
-        if (r.code !== 0) {
+        const r = await window.electronAPI!.runGh(['repo', 'clone', repo, destPath])
+        if (!r.ok) {
           return { ok: false, path: '', output: r.stdout + r.stderr, action: 'cloned', error: r.stderr }
         }
         return { ok: true, path: destPath, output: r.stdout + r.stderr, action: 'cloned' }
@@ -214,12 +214,12 @@ export async function ghCommitPush(repoPath: string, message: string, addAll?: b
   if (isElectron()) {
     try {
       if (addAll) {
-        await window.electronAPI!.git(['add', '-A'], repoPath)
+        await window.electronAPI!.runGit(['add', '-A'], repoPath)
       }
-      const commitR = await window.electronAPI!.git(['commit', '-m', message], repoPath)
-      const pushR = await window.electronAPI!.git(['push'], repoPath)
+      const commitR = await window.electronAPI!.runGit(['commit', '-m', message], repoPath)
+      const pushR = await window.electronAPI!.runGit(['push'], repoPath)
       return {
-        ok: commitR.code === 0 && pushR.code === 0,
+        ok: commitR.ok && pushR.ok,
         output: commitR.stdout + commitR.stderr + '\n' + pushR.stdout + pushR.stderr,
       }
     } catch (err) {
@@ -373,25 +373,14 @@ export async function gitRemote(
 // ── URL fetch ─────────────────────────────────────────────────────────────────
 
 export async function fetchMarkdownUrl(url: string): Promise<FetchUrlResult> {
-  // Convert github.com blob URLs to raw.githubusercontent.com
-  let fetchUrl = url
-  const ghMatch = url.match(
-    /^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/
-  )
-  if (ghMatch) {
-    const [, owner, repo, branch, filePath] = ghMatch
-    fetchUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`
-  }
-
   if (isElectron()) {
-    // Electron renderer can fetch CORS-enabled URLs directly
+    // Route through Electron IPC — main process handles GitHub blob → raw redirect
     try {
-      const r = await fetch(fetchUrl)
-      if (!r.ok) return { ok: false, content: '', url: fetchUrl, error: `HTTP ${r.status}` }
-      const content = await r.text()
-      return { ok: true, content, url: fetchUrl }
+      const r = await window.electronAPI!.fetchUrl(url)
+      if (!r.ok) return { ok: false, content: '', url: r.url ?? url, error: r.error }
+      return { ok: true, content: r.content ?? '', url: r.url ?? url }
     } catch (err) {
-      return { ok: false, content: '', url: fetchUrl, error: String(err) }
+      return { ok: false, content: '', url, error: String(err) }
     }
   }
 
