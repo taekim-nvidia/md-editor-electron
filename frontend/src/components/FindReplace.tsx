@@ -87,10 +87,17 @@ export default function FindReplace({ editorView, wysiwygRef, onClose }: Props) 
       const count = wysiwygRef.current.countMatches(searchText, caseSensitive)
       setMatchCount(count)
     } else if (editorView) {
-      const query = new SearchQuery({ search: searchText, caseSensitive, regexp: useRegex, replace: replaceText })
-      editorView.dispatch({ effects: setSearchQuery.of(query) })
-      replaceNext(editorView)
-      applyQuery(searchText, caseSensitive, useRegex)
+      // Direct text replacement in CodeMirror document (more reliable than search plugin)
+      const doc = editorView.state.doc.toString()
+      const idx = caseSensitive ? doc.indexOf(searchText) : doc.toLowerCase().indexOf(searchText.toLowerCase())
+      if (idx !== -1) {
+        editorView.dispatch({
+          changes: { from: idx, to: idx + searchText.length, insert: replaceText },
+          selection: { anchor: idx + replaceText.length },
+        })
+        editorView.focus()
+        applyQuery(searchText, caseSensitive, useRegex)
+      }
     }
   }
 
@@ -99,10 +106,20 @@ export default function FindReplace({ editorView, wysiwygRef, onClose }: Props) 
       wysiwygRef.current.replaceAll(searchText, replaceText, caseSensitive)
       setMatchCount(0)
     } else if (editorView) {
-      const query = new SearchQuery({ search: searchText, caseSensitive, regexp: useRegex, replace: replaceText })
-      editorView.dispatch({ effects: setSearchQuery.of(query) })
-      replaceAll(editorView)
-      applyQuery(searchText, caseSensitive, useRegex)
+      // Direct regex replacement in CodeMirror document
+      const doc = editorView.state.doc.toString()
+      const flags = caseSensitive ? 'g' : 'gi'
+      try {
+        const pattern = useRegex ? searchText : searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const newDoc = doc.replace(new RegExp(pattern, flags), replaceText)
+        if (newDoc !== doc) {
+          editorView.dispatch({
+            changes: { from: 0, to: doc.length, insert: newDoc },
+          })
+          editorView.focus()
+        }
+        applyQuery(searchText, caseSensitive, useRegex)
+      } catch (_) {}
     }
   }
 

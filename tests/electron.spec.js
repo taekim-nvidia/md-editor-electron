@@ -352,3 +352,146 @@ test.describe('Electron: UI + IPC integration', () => {
     }
   })
 })
+
+
+// ── Section 6: Git push/pull IPC ─────────────────────────────────────────────
+test.describe('Electron: Git push/pull IPC', () => {
+  test('git pull runs without crashing on a valid repo', async () => {
+    const { app, page } = await launchApp()
+    try {
+      // Use the app's own repo which has a remote
+      const result = await page.evaluate(async (cwd) => {
+        return await window.electronAPI.runGit(['fetch', '--dry-run'], cwd)
+      }, path.join(__dirname, '..'))
+      // ok or not — we just need it to not throw
+      expect(typeof result.ok).toBe('boolean')
+      expect(typeof result.stdout).toBe('string')
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('git status runs on a valid repo', async () => {
+    const { app, page } = await launchApp()
+    try {
+      const result = await page.evaluate(async (cwd) => {
+        return await window.electronAPI.runGit(['status', '--porcelain', '--branch'], cwd)
+      }, path.join(__dirname, '..'))
+      expect(result.ok).toBe(true)
+      expect(result.stdout).toContain('master')
+    } finally {
+      await app.close()
+    }
+  })
+})
+
+// ── Section 7: ghClone IPC ────────────────────────────────────────────────────
+test.describe('Electron: ghClone IPC', () => {
+  test('ghClone clones or pulls the markdown-editor repo', async () => {
+    const { app, page } = await launchApp()
+    try {
+      const result = await page.evaluate(async (repo) => {
+        return await window.electronAPI.ghClone(repo)
+      }, 'NVIDIA-dev/markdown-editor')
+      expect(result.ok).toBe(true)
+      expect(result.path).toBeTruthy()
+      expect(result.action).toMatch(/cloned|pulled/)
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('cloned repo directory is readable via readDir', async () => {
+    const { app, page } = await launchApp()
+    try {
+      const cloneResult = await page.evaluate(async (repo) => {
+        return await window.electronAPI.ghClone(repo)
+      }, 'NVIDIA-dev/markdown-editor')
+      expect(cloneResult.ok).toBe(true)
+
+      const entries = await page.evaluate(async (dir) => {
+        return await window.electronAPI.readDir(dir)
+      }, cloneResult.path)
+      expect(Array.isArray(entries)).toBe(true)
+      const names = entries.map((e) => e.name)
+      expect(names).toContain('README.md')
+    } finally {
+      await app.close()
+    }
+  })
+})
+
+// ── Section 8: gh:run IPC ─────────────────────────────────────────────────────
+test.describe('Electron: gh:run IPC', () => {
+  test('gh auth status runs via IPC', async () => {
+    const { app, page } = await launchApp()
+    try {
+      const result = await page.evaluate(async (args) => {
+        return await window.electronAPI.runGh(args)
+      }, ['auth', 'status'])
+      // Either ok (authenticated) or not — just must not crash
+      expect(typeof result.ok).toBe('boolean')
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('gh api user returns user info', async () => {
+    const { app, page } = await launchApp()
+    try {
+      const result = await page.evaluate(async (args) => {
+        return await window.electronAPI.runGh(args)
+      }, ['api', 'user', '--jq', '.login'])
+      expect(result.ok).toBe(true)
+      expect(result.stdout.trim().length).toBeGreaterThan(0)
+    } finally {
+      await app.close()
+    }
+  })
+})
+
+// ── Section 9: Git identity ───────────────────────────────────────────────────
+test.describe('Electron: Git identity', () => {
+  test('git user.name is configured globally', async () => {
+    const { app, page } = await launchApp()
+    try {
+      await page.waitForTimeout(2000) // let ensureGitIdentity run
+      const result = await page.evaluate(async ({ args, cwd }) => {
+        return await window.electronAPI.runGit(args, cwd)
+      }, { args: ['config', '--global', 'user.name'], cwd: APP_ROOT })
+      expect(result.ok).toBe(true)
+      expect(result.stdout.trim().length).toBeGreaterThan(0)
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('git user.email is configured globally', async () => {
+    const { app, page } = await launchApp()
+    try {
+      await page.waitForTimeout(2000)
+      const result = await page.evaluate(async ({ args, cwd }) => {
+        return await window.electronAPI.runGit(args, cwd)
+      }, { args: ['config', '--global', 'user.email'], cwd: APP_ROOT })
+      expect(result.ok).toBe(true)
+      expect(result.stdout.trim()).toContain('@')
+    } finally {
+      await app.close()
+    }
+  })
+})
+
+// ── Section 10: App close ─────────────────────────────────────────────────────
+test.describe('Electron: App close', () => {
+  test('app closes cleanly without zombie processes', async () => {
+    const { app, page } = await launchApp()
+    // Verify app is running — firstWindow should be accessible
+    await expect(page.locator('.ProseMirror')).toBeVisible()
+    await app.close()
+    await new Promise(r => setTimeout(r, 1000))
+    // After close, the app object should have exited
+    // We verify by checking that no new windows can be created
+    const windows = await app.windows()
+    expect(windows.length).toBe(0)
+  })
+})

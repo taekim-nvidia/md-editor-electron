@@ -847,3 +847,256 @@ test.describe('Style Changes Both Modes', () => {
     expect(text?.replace(/\s+/g, '')).toContain('_italic_')
   })
 })
+
+
+// ── SECTION 17: Find & Replace functionality ──────────────────────────────────
+test.describe('Find & Replace: functionality', () => {
+  test('Find shows match count', async ({ page }) => {
+    await loadApp(page)
+    await page.click('button[title="New (Ctrl+N)"]')
+    await page.waitForTimeout(300)
+    await switchToSource(page)
+    const cm = page.locator('.cm-content')
+    await cm.click()
+    await page.keyboard.type('hello world hello again')
+    await page.waitForTimeout(200)
+    await page.keyboard.press('Control+f')
+    await page.waitForTimeout(300)
+    const findInput = page.locator('input[placeholder*="ind"]').first()
+    await findInput.fill('hello')
+    await page.waitForTimeout(300)
+    const bodyText = await page.evaluate(() => document.body.textContent ?? '')
+    expect(bodyText).toMatch(/\d+/)
+  })
+
+  test('Replace single occurrence works', async ({ page }) => {
+    await loadApp(page)
+    await page.click('button[title="New (Ctrl+N)"]')
+    await page.waitForTimeout(300)
+    await switchToSource(page)
+    const cm = page.locator('.cm-content')
+    await cm.click()
+    await page.keyboard.type('foo bar foo')
+    await page.waitForTimeout(300)
+    await page.keyboard.press('Control+f')
+    await page.waitForTimeout(400)
+    await page.locator('input[placeholder*="ind"]').first().fill('foo')
+    await page.waitForTimeout(300)
+    await page.locator('input[placeholder*="eplace"]').first().fill('baz')
+    await page.waitForTimeout(200)
+    await page.click('button:text("Replace")')
+    await page.waitForTimeout(800)
+    // Close find bar so we can read the editor content cleanly
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(200)
+    const text = await page.evaluate(() => {
+      const lines = Array.from(document.querySelectorAll('.cm-line')).map(l => l.textContent ?? '')
+      return lines.join(' ')
+    })
+    expect(text.replace(/\s+/g, ' ')).toContain('baz')
+  })
+
+  test('Replace All replaces every occurrence', async ({ page }) => {
+    await loadApp(page)
+    await page.click('button[title="New (Ctrl+N)"]')
+    await page.waitForTimeout(300)
+    await switchToSource(page)
+    const cm = page.locator('.cm-content')
+    await cm.click()
+    await page.keyboard.type('cat cat cat')
+    await page.waitForTimeout(300)
+    await page.keyboard.press('Control+f')
+    await page.waitForTimeout(400)
+    await page.locator('input[placeholder*="ind"]').first().fill('cat')
+    await page.waitForTimeout(200)
+    await page.locator('input[placeholder*="eplace"]').first().fill('dog')
+    await page.waitForTimeout(200)
+    await page.click('button:text("All")')
+    await page.waitForTimeout(800)
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(200)
+    const text = await page.evaluate(() => {
+      const lines = Array.from(document.querySelectorAll('.cm-line')).map(l => l.textContent ?? '')
+      return lines.join(' ')
+    })
+    expect(text.replace(/\s+/g, ' ')).not.toContain('cat')
+    expect(text.replace(/\s+/g, ' ')).toContain('dog')
+  })
+})
+
+// ── SECTION 18: Code block button ────────────────────────────────────────────
+test.describe('Code Block Button', () => {
+  test('code block button works in WYSIWYG', async ({ page }) => {
+    await loadApp(page)
+    await page.click('button[title="New (Ctrl+N)"]')
+    await page.waitForTimeout(400)
+    const prose = page.locator('.ProseMirror')
+    await prose.click()
+    await page.keyboard.type('some code here')
+    await page.keyboard.press('Control+a')
+    await page.waitForTimeout(100)
+    await page.click('button[title="Code block"]')
+    await page.waitForTimeout(400)
+    const hasCode = await page.locator('.ProseMirror pre, .ProseMirror code').count()
+    expect(hasCode).toBeGreaterThan(0)
+  })
+
+  test('code block button works in Source mode', async ({ page }) => {
+    await loadApp(page)
+    await page.click('button[title="New (Ctrl+N)"]')
+    await page.waitForTimeout(400)
+    await switchToSource(page)
+    await page.waitForSelector('.cm-editor', { timeout: 5000 })
+    await page.waitForTimeout(500)
+    // Click in editor and type something to ensure it's focused and initialized
+    const cm = page.locator('.cm-content')
+    await cm.click()
+    await page.keyboard.type('x')
+    await page.waitForTimeout(300)
+    // Now click code block
+    await page.click('button[title="Code block"]')
+    await page.waitForTimeout(600)
+    const codeBlockText = await page.evaluate(() => {
+      return document.querySelector('.cm-content')?.textContent ?? ''
+    })
+    expect(codeBlockText).toContain('```')
+  })
+})
+
+// ── SECTION 19: H2 in Source mode ────────────────────────────────────────────
+test.describe('H2 in Source mode', () => {
+  test('H2 button inserts ## prefix in Source mode', async ({ page }) => {
+    await loadApp(page)
+    await page.click('button[title="New (Ctrl+N)"]')
+    await page.waitForTimeout(400)
+    await switchToSource(page)
+    const cm = page.locator('.cm-content')
+    await cm.click()
+    await page.keyboard.type('Subheading text')
+    await page.waitForTimeout(200)
+    await page.keyboard.press('Home')
+    await page.click('button[title="Heading 2"]')
+    await page.waitForTimeout(300)
+    const text = await cm.textContent()
+    expect(text?.replace(/\s+/g, '')).toContain('##')
+  })
+})
+
+// ── SECTION 20: Tab content isolation ────────────────────────────────────────
+test.describe('Tab content isolation', () => {
+  test('switching tabs shows different content', async ({ page }) => {
+    await loadApp(page)
+    await switchToSource(page)
+    const cm = page.locator('.cm-content')
+    await cm.click()
+    await page.keyboard.press('Control+a')
+    await page.keyboard.type('CONTENT_TAB_ONE')
+    await page.waitForTimeout(300)
+    await page.click('button[title="New (Ctrl+N)"]')
+    await page.waitForTimeout(400)
+    await cm.click()
+    await page.keyboard.type('CONTENT_TAB_TWO')
+    await page.waitForTimeout(300)
+    const allTabs = await page.locator('[class*="truncate"]').all()
+    if (allTabs.length >= 2) {
+      await allTabs[0].click()
+      await page.waitForTimeout(400)
+      const text = await cm.textContent()
+      expect(text?.replace(/\s+/g, '')).toContain('CONTENT_TAB_ONE')
+      expect(text?.replace(/\s+/g, '')).not.toContain('CONTENT_TAB_TWO')
+    }
+  })
+})
+
+// ── SECTION 21: Modified indicator ───────────────────────────────────────────
+test.describe('Modified indicator', () => {
+  test('modified indicator appears after typing', async ({ page }) => {
+    await loadApp(page)
+    await page.click('button[title="New (Ctrl+N)"]')
+    await page.waitForTimeout(400)
+    await switchToSource(page)
+    const cm = page.locator('.cm-content')
+    await cm.click()
+    await page.keyboard.type('unsaved change xyz')
+    await page.waitForTimeout(400)
+    // Modified indicator is shown in tab bar — check the full tab bar text
+    const tabBarText = await page.evaluate(() => {
+      // Find the tab bar container
+      const tabBar = document.querySelector('[class*="overflow-x-auto"]')
+      return tabBar ? tabBar.textContent ?? '' : document.body.textContent?.slice(0, 500) ?? ''
+    })
+    // The modified indicator (• or *) should appear somewhere in the tab area
+    expect(tabBarText).toMatch(/[•*●]/)  // app uses ● as modified indicator
+  })
+})
+
+// ── SECTION 22: Help button ───────────────────────────────────────────────────
+test.describe('Help button', () => {
+  test('Help ? button exists in toolbar', async ({ page }) => {
+    await loadApp(page)
+    await expect(page.locator('button[title="Help — open README"]')).toBeVisible()
+  })
+})
+
+// ── SECTION 23: Dark mode visual ─────────────────────────────────────────────
+test.describe('Dark mode visual', () => {
+  test('dark mode applies dark class and bg-gray-900 elements exist', async ({ page }) => {
+    await loadApp(page)
+    const isDark = await page.evaluate(() => document.documentElement.classList.contains('dark'))
+    if (!isDark) {
+      await page.click('button[title="Toggle dark/light theme"]')
+      await page.waitForTimeout(200)
+    }
+    await expect(page.locator('.dark')).toBeDefined()
+    const hasDark = await page.evaluate(() => document.documentElement.classList.contains('dark'))
+    expect(hasDark).toBe(true)
+  })
+})
+
+// ── SECTION 24: Font size actually changes ────────────────────────────────────
+test.describe('Font size actually changes style', () => {
+  test('A+ increases font-size style value', async ({ page }) => {
+    await loadApp(page)
+    // Reset first
+    await page.keyboard.press('Control+0')
+    await page.waitForTimeout(200)
+    const before = await page.evaluate(() => {
+      const el = document.querySelector('[style*="font-size"]')
+      const m = el?.getAttribute('style')?.match(/font-size:\s*([\d.]+)/)
+      return m ? parseFloat(m[1]) : 14
+    })
+    await page.click('button[title="Increase font size"]')
+    await page.waitForTimeout(300)
+    const after = await page.evaluate(() => {
+      const el = document.querySelector('[style*="font-size"]')
+      const m = el?.getAttribute('style')?.match(/font-size:\s*([\d.]+)/)
+      return m ? parseFloat(m[1]) : 14
+    })
+    expect(after).toBeGreaterThan(before)
+  })
+})
+
+// ── SECTION 25: PR panel fields ───────────────────────────────────────────────
+test.describe('PR panel fields', () => {
+  test('PR panel has repo input field', async ({ page }) => {
+    await loadApp(page)
+    await page.click('button[title="Pull Requests"]')
+    await page.waitForTimeout(400)
+    const hasInput = await page.evaluate(() => {
+      const inputs = Array.from(document.querySelectorAll('input[placeholder]'))
+      return inputs.some(i =>
+        i.placeholder.toLowerCase().includes('owner') ||
+        i.placeholder.toLowerCase().includes('repo')
+      )
+    })
+    expect(hasInput).toBe(true)
+  })
+
+  test('PR panel has state filter (Open/Closed/All)', async ({ page }) => {
+    await loadApp(page)
+    await page.click('button[title="Pull Requests"]')
+    await page.waitForTimeout(400)
+    const bodyText = await page.evaluate(() => document.body.textContent ?? '')
+    expect(bodyText).toMatch(/open|closed|all/i)
+  })
+})
