@@ -593,6 +593,7 @@ ${body}
           onPrToggle={() => setShowPr((v) => !v)}
           showPr={showPr}
           onLoadUrl={loadUrl}
+          onHelp={() => window.open('https://github.com/NVIDIA-dev/markdown-editor#feature-guide', '_blank')}
           layout={layout}
           onLayoutChange={setLayout}
           editorMode={editorMode}

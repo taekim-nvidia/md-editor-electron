@@ -25,6 +25,8 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
   const [commitMsg, setCommitMsg] = useState('')
   const [prs, setPrs] = useState<PR[]>([])
   const [prsLoading, setPrsLoading] = useState(false)
+  const [orgs, setOrgs] = useState<string[]>([])
+  const [orgFilter, setOrgFilter] = useState<string>('all')
 
   const showOutput = (msg: string, error = false) => {
     setOutput(msg.trim())
@@ -44,11 +46,15 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
     try {
       if (window.electronAPI) {
         const r = await window.electronAPI.runGh([
-          'repo', 'list', '--limit', '50',
+          'repo', 'list', '--limit', '100',
           '--json', 'nameWithOwner,description,isPrivate,updatedAt',
         ])
         if (r.ok) {
-          setRepos(JSON.parse(r.stdout))
+          const allRepos = JSON.parse(r.stdout)
+          setRepos(allRepos)
+          // Extract unique owners for org switcher
+          const owners = Array.from(new Set<string>(allRepos.map((repo: any) => repo.nameWithOwner.split('/')[0] as string)))
+          setOrgs(owners)
         } else {
           showOutput('Error loading repos:\n' + (r.stderr || r.stdout), true)
         }

@@ -6,6 +6,7 @@ import { Theme } from '../types'
 
 interface Props {
   editorView: EditorView | null
+  onHelp: () => void
   wysiwygRef?: React.RefObject<WysiwygEditorRef | null>
   theme: Theme
   onThemeToggle: () => void
@@ -131,6 +132,7 @@ function Divider() {
 export default function Toolbar({
   editorView,
   wysiwygRef,
+  onHelp,
   theme,
   onThemeToggle,
   onNew,
@@ -279,6 +281,7 @@ export default function Toolbar({
 
       {/* HTML export */}
       <ToolBtn title="Export as HTML" onClick={onHtmlExport}>HTML</ToolBtn>
+      <ToolBtn title="Help — open README" onClick={onHelp}>?</ToolBtn>
       <Divider />
 
       {/* Theme */}
