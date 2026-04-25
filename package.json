@@ -10,7 +10,9 @@
     "dev": "npm run electron:compile && concurrently -n vite,electron -c magenta,cyan \"npm run dev --workspace=frontend\" \"wait-on tcp:5173 && electron .\"",
     "build": "npm run build --workspace=frontend && npm run electron:compile",
     "dist": "npm run build && electron-builder",
-    "install:all": "npm install"
+    "install:all": "npm install",
+    "test": "node tests/server.js & sleep 2 && node_modules/.bin/playwright test tests/qa.spec.js; kill %1 2>/dev/null",
+    "test:build": "cd frontend && npx vite build && cd .. && npm test"
   },
   "devDependencies": {
     "@types/node": "^20.11.5",
