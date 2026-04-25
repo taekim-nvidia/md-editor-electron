@@ -3,113 +3,11 @@
 A full-featured Markdown editor built with Electron + React + TypeScript.
 Runs as a native desktop app — no browser needed. Works on Windows, Mac, and Linux.
 
----
-
-## Installation Guide
-
-### Windows
-
-**1. Node.js (includes npm)**
-- Download from https://nodejs.org → click **LTS** (green button)
-- Run the `.msi` installer, keep all defaults
-- Open a **new** PowerShell and verify:
-```powershell
-node --version
-npm --version
-```
-
-**2. Git**
-- Download from https://git-scm.com/download/win
-- Run installer, keep all defaults
-- Verify: `git --version`
-
-**3. gh CLI** (for GitHub Browser and PR panel)
-- Download from https://cli.github.com → Download for Windows → run `.msi`
-- Or if you have winget: `winget install GitHub.cli`
-- Open a new PowerShell and authenticate:
-```powershell
-gh auth login
-```
-Choose: GitHub.com → HTTPS → Login with a web browser
+**Repo:** https://github.com/NVIDIA-dev/markdown-editor
 
 ---
 
-### macOS
-
-**1. Homebrew** (if not installed)
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
-**2. Node.js, Git, gh CLI**
-```bash
-brew install node git gh
-gh auth login
-```
-
-Or install Node.js manually from https://nodejs.org → macOS installer.
-
----
-
-### Linux (Ubuntu / Debian)
-
-**1. Node.js**
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-```
-
-**2. Git**
-```bash
-sudo apt install git
-```
-
-**3. gh CLI**
-```bash
-(type -p wget >/dev/null || (sudo apt update && sudo apt-get install wget -y)) \
-&& sudo mkdir -p -m 755 /etc/apt/keyrings \
-&& wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
-&& sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-&& sudo apt update && sudo apt install gh -y
-
-gh auth login
-```
-
----
-
-## Linux: Electron Sandbox Fix
-
-On Linux, Electron requires a SUID sandbox binary. If you see:
-```
-FATAL: setuid_sandbox_host.cc — chrome-sandbox is not configured correctly
-```
-
-Run:
-```bash
-sudo chown root:root node_modules/electron/dist/chrome-sandbox
-sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
-```
-
-Or `npm install` will attempt this automatically via the postinstall script.
-
----
-
-## Verify Installation
-
-Run these — all should print a version number:
-
-```bash
-node --version     # 18 or higher
-npm --version      # 9 or higher
-git --version
-gh --version
-gh auth status     # should say: Logged in to github.com
-```
-
----
-
-## Run the App
+## Quick Start
 
 ```bash
 git clone https://github.com/NVIDIA-dev/markdown-editor.git
@@ -118,188 +16,230 @@ npm install
 npm run dev
 ```
 
-The app opens as a native window.
+The app opens as a native window in WYSIWYG mode — click anywhere and start typing.
 
-**Debug mode** (enables DevTools):
+---
+
+## Installation Guide
+
+### Prerequisites
+
+| Tool | Required for | Install |
+|---|---|---|
+| Node.js 18+ | Running the app | https://nodejs.org (LTS) |
+| Git | Git panel | https://git-scm.com |
+| gh CLI | GitHub browser, PR panel, URL loading | https://cli.github.com |
+
+---
+
+### Windows
+
+```powershell
+# Install Node.js — download from https://nodejs.org → LTS → run .msi
+
+# Install Git — download from https://git-scm.com/download/win → run .exe
+
+# Install gh CLI
+winget install GitHub.cli
+# OR download .msi from https://cli.github.com
+
+# Open a NEW PowerShell after installing, then authenticate:
+gh auth login
+# Choose: GitHub.com → HTTPS → Login with a web browser
+```
+
+---
+
+### macOS
+
+```bash
+# Install Homebrew if not already installed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install everything
+brew install node git gh
+
+# Authenticate gh
+gh auth login
+```
+
+---
+
+### Linux (Ubuntu / Debian)
+
+```bash
+# Node.js
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Git
+sudo apt install git
+
+# gh CLI
+sudo apt install gh  # Ubuntu 22.04+
+# Or follow: https://github.com/cli/cli/blob/trunk/docs/install_linux.md
+
+# Authenticate
+gh auth login
+```
+
+---
+
+### Linux: Electron Sandbox
+
+On Linux, if you see `FATAL: setuid_sandbox_host.cc — chrome-sandbox is not configured correctly`:
+
+```bash
+sudo chown root:root node_modules/electron/dist/chrome-sandbox
+sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+```
+
+`npm install` will attempt this automatically. If it fails, run the commands above manually.
+
+---
+
+## Verify Installation
+
+```bash
+node --version     # should be 18+
+npm --version      # should be 9+
+git --version
+gh --version
+gh auth status     # should say: Logged in to github.com
+```
+
+---
+
+## Run
+
+```bash
+git clone https://github.com/NVIDIA-dev/markdown-editor.git
+cd markdown-editor
+npm install
+npm run dev
+```
+
+**Debug mode** (opens DevTools):
 ```bash
 npm run dev -- --devtools
 ```
 
 ---
 
-## Tests
-
-```bash
-node tests/server.js &
-npx playwright test tests/qa.spec.js
-```
-
-**What the tests cover (73 tests):**
-- Frontend UI: WYSIWYG editor, Source editor, layouts, toolbar buttons, keyboard shortcuts, tabs, find/replace, theme, font size, git panel UI, GitHub browser UI, PR panel UI
-
-**What the tests do NOT cover:**
-- Actual Electron process launch
-- Git/gh CLI calls (require real credentials and network)
-- Electron IPC handlers
-- File save/read on disk via IPC
-- Linux sandbox setup
-
-These require manual testing on a real machine with Electron running.
-
----
-
 ## Feature Guide
 
-### Writing Markdown
+> **Click the `?` button in the toolbar at any time to open this guide in your browser.**
 
-The app opens with a split view: **source editor on the left**, **live preview on the right**.
+### First Launch
 
-- Type markdown in the left pane — the right pane updates as you type
-- The right pane is fully editable in WYSIWYG mode (see below)
-- Use toolbar buttons or keyboard shortcuts to format text
+The app opens in **WYSIWYG mode** — a rich text editor where you can click and type directly, just like Google Docs or Notion. No markdown syntax required.
 
 ---
 
 ### Layout Modes
 
-Use the layout buttons on the right side of the toolbar:
+Use the buttons on the right side of the toolbar to switch layouts:
 
-| Button | Layout |
+| Button | What it does |
 |---|---|
-| 50/50 | Editor left, preview right (default) |
-| Top/Bot | Editor top, preview bottom |
-| Edit | Full-screen source editor |
-| View | Full-screen preview |
-| WYSIWYG | Full-screen rich text editor |
+| **Source** | Split view — CodeMirror editor on left, live preview on right |
+| **WYSIWYG** | Full-screen rich text editor (default) |
+| Split H icon | Side-by-side (editor + preview) |
+| Split V icon | Top/bottom (editor + preview) |
+| Edit icon | Source editor only |
+| View icon | Preview only |
 
 ---
 
 ### WYSIWYG Mode
 
-Click the **WYSIWYG** button in the toolbar to switch to rich text editing.
+Click anywhere and type. Use the toolbar to format:
 
-- Click anywhere in the document and type
-- Select text and use toolbar buttons (Bold, Italic, H1, H2, Code) to format
-- The markdown source stays in sync automatically
-- Switch back to split view any time — all changes are preserved
+- **B** / Ctrl+B — Bold
+- **I** / Ctrl+I — Italic
+- **H1**, **H2** — Headings
+- **\`** — Inline code
+- **{ }** — Code block
+
+Changes sync to markdown source automatically.
+
+---
+
+### Source Mode
+
+Click **Source** to see the split view with raw markdown on the left and rendered preview on the right. Full CodeMirror editor with syntax highlighting and line numbers.
 
 ---
 
 ### Opening Files
 
-**Local file:**
-1. Click **Open** in the toolbar (or Ctrl+O)
-2. Select a `.md` or `.txt` file from the dialog
-
-**From URL:**
-1. Click **URL** in the toolbar
-2. Paste any URL — including GitHub repo URLs like `https://github.com/owner/repo`
-3. GitHub URLs are automatically redirected to the raw file content
-
-**Multiple files:**
-- Each file opens in a new tab
-- Click tabs to switch between files
-- Click **×** on a tab to close it
-- Click **+** to open a new empty tab
+- **Open** button or `Ctrl+O` — open a local file
+- **URL** button — paste any URL:
+  - `https://github.com/owner/repo` → loads README
+  - `https://github.com/owner/repo/blob/main/file.md` → loads that file
+  - Also opens in the **GH browser** panel so you can commit changes
+- **+** button or `Ctrl+N` — new empty tab
 
 ---
 
-### Saving Files
+### Saving
 
-- **Ctrl+S** — save current file
-- First save on a new file opens a Save dialog to choose location
-- The app auto-saves before every git commit
+- **Ctrl+S** — save
+- New files: prompts for a location on first save
+- Auto-saves before every git commit
 
 ---
 
 ### Find & Replace
 
-1. Press **Ctrl+F** or click the **Find** toolbar button
-2. Type in the Find field — match count updates as you type
-3. Press **Enter** or click **↓** for next match, **↑** for previous
-4. Fill in the Replace field and click **Replace** (one) or **All** (all occurrences)
-5. Press **Escape** or click **X** to close
-
----
-
-### Font Size
-
-- **Ctrl+=** — increase font size
-- **Ctrl+-** — decrease font size
-- **Ctrl+0** — reset to default (14px)
-
----
-
-### Dark / Light Theme
-
-Click the **Theme** button in the toolbar to toggle between dark and light mode.
-
----
-
-### HTML Export
-
-Click **HTML** in the toolbar to export the current file as a self-contained `.html` file with GitHub-style CSS.
+**Ctrl+F** or click **Find** in toolbar:
+- Type to search — match count shows live
+- **↓ / ↑** — next/previous match
+- Fill Replace field → **Replace** (one) or **All** (all occurrences)
+- **Escape** to close
 
 ---
 
 ### Git Panel
 
-Click the **Git** button in the toolbar to open the Git panel.
+Click **Git** in toolbar:
 
-**Setup:**
-- The Working directory field auto-fills from the open file's location
-- If empty, type the path to your git repo manually
-
-**Workflow:**
-1. Edit your file
-2. Open the Git panel
-3. Enter a commit message
-4. Check **git add -A** if you want to stage all changes (default: on)
-5. Click **Commit** — the file is saved automatically before committing
-6. Click **Push** to push to remote
-
-**Pull:** Click **Pull** to fetch and merge the latest changes from remote.
+1. Working directory auto-fills from the open file's path
+2. Type a commit message
+3. **Commit** — saves the file first, then commits
+4. **Push** — push to remote
+5. **Pull** — fetch and merge latest
 
 ---
 
 ### GitHub Browser
 
-Requires `gh auth login` to be done first.
+Click **GH** in toolbar (requires `gh auth login`):
 
-Click the **GH** button in the toolbar.
+1. Your repos load automatically — filter by owner using the buttons at the top
+2. Click a repo → browse file tree
+3. Click a text file → clones to `/tmp/gh-workspace/` and opens in editor
+4. Make changes, enter commit message → **Commit & Push**
+5. Open PRs for the repo appear below the file list — click to open on GitHub
 
-**Workflow:**
-1. Your repos load automatically
-2. Click a repo to browse its file tree
-3. Navigate into folders by clicking them
-4. Click any text file to open it for editing — it's cloned to a local temp folder
-5. Edit the file in the editor
-6. In the GitHub Browser panel, enter a commit message and click **Commit & Push**
-   - The file is saved automatically before committing
+**Paste a GitHub URL in the URL dialog** → automatically opens the file and navigates the GH browser to that repo.
 
 ---
 
 ### PR Panel
 
-Requires `gh auth login` to be done first.
+Click **PR** in toolbar (requires `gh auth login`):
 
-Click the **PR** button in the toolbar.
+- Enter `owner/repo` → browse Open / Closed / All PRs
+- Click a PR → view description and comments (rendered as markdown)
+- Reply to comments, approve, request changes
+- **Create PR** tab → create a PR from your current branch
 
-**Browse PRs:**
-1. Enter a repo name (e.g. `owner/repo`) in the repo field
-2. Toggle between Open / Closed / All PRs
-3. Click a PR to open its detail view
+---
 
-**PR Detail:**
-- Title, description, and all comments are rendered as markdown
-- Reply to comments using the reply box at the bottom
-- Review buttons: **Approve**, **Request Changes**, **Comment**
-- Click **Open diff in editor** to load the unified diff as a new tab
+### Help
 
-**Create PR:**
-1. Click the **Create PR** tab
-2. Fill in title, base branch, and description
-3. Click **Create** — creates a PR from your current branch
+Click **?** in the toolbar → opens this README on GitHub.
 
 ---
 
@@ -318,14 +258,30 @@ Click the **PR** button in the toolbar.
 
 ---
 
+## Tests
+
+113 automated tests across two suites:
+
+```bash
+# Run all tests
+npx playwright test tests/qa.spec.js tests/electron.spec.js
+```
+
+| Suite | Tests | What it covers |
+|---|---|---|
+| `qa.spec.js` | 88 | Frontend UI — buttons, modes, shortcuts, panels, find/replace, formatting |
+| `electron.spec.js` | 25 | Real Electron — app launch, file I/O via IPC, git add+commit, gh API calls, app close |
+
+---
+
 ## Tech Stack
 
 | Layer | Tech |
 |---|---|
 | Shell | Electron 30 |
 | Frontend | React 18 + Vite + TypeScript |
-| Source editor | CodeMirror 6 |
 | WYSIWYG editor | Tiptap |
+| Source editor | CodeMirror 6 |
 | Preview | marked + highlight.js |
 | Styling | Tailwind CSS |
 | Git/gh | Electron IPC → child_process |
