@@ -296,7 +296,7 @@ export default function Toolbar({
             Paste any GitHub URL — repo, file, or org. Opens in the GH browser panel.
           </div>
           <input
-            type="url"
+            type="text"
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
             onKeyDown={(e) => {

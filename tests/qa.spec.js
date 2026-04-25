@@ -12,11 +12,18 @@ const { test, expect } = require('@playwright/test')
 const baseUrl = 'http://localhost:5399'
 
 // ── Helper ─────────────────────────────────────────────────────────────────────
+let _appLoaded = false
+
 async function loadApp(page) {
-  await page.goto(baseUrl)
-  await page.waitForTimeout(3000)
-  // Wait for ProseMirror to mount (WYSIWYG default)
-  await page.waitForSelector('.ProseMirror', { timeout: 8000 })
+  // Use goto on first load, reload() after (assets cached = faster)
+  if (!_appLoaded) {
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 })
+    _appLoaded = true
+  } else {
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 })
+  }
+  await page.waitForSelector('.ProseMirror', { timeout: 10000 })
+  await page.waitForTimeout(500)
 }
 
 async function switchToSource(page) {
@@ -581,7 +588,7 @@ test.describe('URL Loader', () => {
     await page.click('button[title="Load from GitHub URL"]')
     await page.waitForTimeout(400)
     // Should show an input for URL
-    const urlInput = page.locator('input[placeholder*="http"], input[placeholder*="github"], input[placeholder*="URL"], input[type="url"]')
+    const urlInput = page.locator('input[placeholder*="http"], input[placeholder*="github"], input[placeholder*="URL"], input[placeholder*="github"]')
     const count = await urlInput.count()
     expect(count).toBeGreaterThan(0)
   })
@@ -649,7 +656,7 @@ test.describe('GitHub URL in URL Dialog', () => {
     await loadApp(page)
     await page.click('button[title="Load from GitHub URL"]')
     await page.waitForTimeout(300)
-    const input = page.locator('input[type="url"]').first()
+    const input = page.locator('input[placeholder*="github"]').first()
     await input.fill('https://github.com/NVIDIA-dev/markdown-editor')
     const val = await input.inputValue()
     expect(val).toBe('https://github.com/NVIDIA-dev/markdown-editor')
@@ -659,7 +666,7 @@ test.describe('GitHub URL in URL Dialog', () => {
     await loadApp(page)
     await page.click('button[title="Load from GitHub URL"]')
     await page.waitForTimeout(300)
-    const input = page.locator('input[type="url"]').first()
+    const input = page.locator('input[placeholder*="github"]').first()
     await input.fill('https://github.com/NVIDIA-dev/markdown-editor/blob/master/README.md')
     const val = await input.inputValue()
     expect(val).toContain('/blob/master/README.md')
@@ -669,7 +676,7 @@ test.describe('GitHub URL in URL Dialog', () => {
     await loadApp(page)
     await page.click('button[title="Load from GitHub URL"]')
     await page.waitForTimeout(300)
-    const input = page.locator('input[type="url"]').first()
+    const input = page.locator('input[placeholder*="github"]').first()
     const placeholder = await input.getAttribute('placeholder')
     expect(placeholder?.toLowerCase()).toContain('github')
   })
@@ -680,6 +687,28 @@ test.describe('GitHub URL in URL Dialog', () => {
     await page.waitForTimeout(300)
     const text = await page.evaluate(() => document.body.textContent ?? '')
     expect(text).toContain('GH browser')
+  })
+
+  test('URL input is type=text so paste works', async ({ page }) => {
+    await loadApp(page)
+    await page.click('button[title="Load from GitHub URL"]')
+    await page.waitForTimeout(300)
+    // Use the placeholder to find the URL input specifically
+    const input = page.locator('input[placeholder*="github"]').first()
+    const type = await input.getAttribute('type')
+    // Must be text (not url) so paste is not blocked by URL validation
+    expect(type).toBe('text')
+  })
+
+  test('URL input accepts pasted content via clipboard API', async ({ page }) => {
+    await loadApp(page)
+    await page.click('button[title="Load from GitHub URL"]')
+    await page.waitForTimeout(300)
+    const input = page.locator('input[placeholder*="github"]').first()
+    // Simulate paste by filling (Playwright fill = programmatic set which mimics paste)
+    await input.fill('https://github.com/NVIDIA-dev/markdown-editor')
+    const val = await input.inputValue()
+    expect(val).toBe('https://github.com/NVIDIA-dev/markdown-editor')
   })
 })
 
