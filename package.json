@@ -12,7 +12,8 @@
     "dist": "npm run build && electron-builder",
     "install:all": "npm install",
     "test": "node tests/server.js & sleep 2 && node_modules/.bin/playwright test tests/qa.spec.js; kill %1 2>/dev/null",
-    "test:build": "cd frontend && npx vite build && cd .. && npm test"
+    "test:build": "cd frontend && npx vite build && cd .. && npm test",
+    "postinstall": "node scripts/fix-sandbox.js"
   },
   "devDependencies": {
     "@types/node": "^20.11.5",

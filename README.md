@@ -78,6 +78,23 @@ gh auth login
 
 ---
 
+## Linux: Electron Sandbox Fix
+
+On Linux, Electron requires a SUID sandbox binary. If you see:
+```
+FATAL: setuid_sandbox_host.cc — chrome-sandbox is not configured correctly
+```
+
+Run:
+```bash
+sudo chown root:root node_modules/electron/dist/chrome-sandbox
+sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+```
+
+Or `npm install` will attempt this automatically via the postinstall script.
+
+---
+
 ## Verify Installation
 
 Run these — all should print a version number:
