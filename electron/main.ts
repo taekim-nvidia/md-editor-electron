@@ -7,7 +7,7 @@ import * as https from 'https'
 import * as http from 'http'
 
 const execFileAsync = promisify(execFile)
-const isDev = !app.isPackaged
+const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production'
 
 const GH_WORKSPACE = process.platform === 'win32'
   ? path.join(process.env.TEMP ?? 'C:\\Temp', 'gh-workspace')
