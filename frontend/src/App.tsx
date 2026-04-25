@@ -455,9 +455,10 @@ ${body}
         return
       }
       if (ctrl && e.key === 'b') {
-        e.preventDefault()
         const view = editorRef.current?.getView()
         if (view) {
+          // Source mode: wrap with **
+          e.preventDefault()
           const { state } = view
           const sel = state.selection.main
           if (sel.empty) {
@@ -473,13 +474,19 @@ ${body}
             })
           }
           view.focus()
+          return
         }
-        return
+        // WYSIWYG mode: let Tiptap handle it natively
+        if (wysiwygRef.current) {
+          e.preventDefault()
+          wysiwygRef.current.toggleBold()
+          return
+        }
       }
       if (ctrl && e.key === 'i') {
-        e.preventDefault()
         const view = editorRef.current?.getView()
         if (view) {
+          e.preventDefault()
           const { state } = view
           const sel = state.selection.main
           if (sel.empty) {
@@ -495,8 +502,14 @@ ${body}
             })
           }
           view.focus()
+          return
         }
-        return
+        // WYSIWYG mode: Tiptap handles italic
+        if (wysiwygRef.current) {
+          e.preventDefault()
+          wysiwygRef.current.toggleItalic()
+          return
+        }
       }
       // Font size: Ctrl+= or Ctrl++ (shift+=) to increase, Ctrl+- to decrease, Ctrl+0 reset
       if (ctrl && (e.key === '=' || e.key === '+' || (e.shiftKey && e.key === '='))) {
