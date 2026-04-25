@@ -127,6 +127,27 @@ npm run dev -- --devtools
 
 ---
 
+## Tests
+
+```bash
+node tests/server.js &
+npx playwright test tests/qa.spec.js
+```
+
+**What the tests cover (73 tests):**
+- Frontend UI: WYSIWYG editor, Source editor, layouts, toolbar buttons, keyboard shortcuts, tabs, find/replace, theme, font size, git panel UI, GitHub browser UI, PR panel UI
+
+**What the tests do NOT cover:**
+- Actual Electron process launch
+- Git/gh CLI calls (require real credentials and network)
+- Electron IPC handlers
+- File save/read on disk via IPC
+- Linux sandbox setup
+
+These require manual testing on a real machine with Electron running.
+
+---
+
 ## Feature Guide
 
 ### Writing Markdown
