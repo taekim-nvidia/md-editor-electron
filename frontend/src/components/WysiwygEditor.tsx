@@ -6,6 +6,7 @@ import React, {
 } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import Link from '@tiptap/extension-link'
+import Image from '@tiptap/extension-image'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 import Highlight from '@tiptap/extension-highlight'
@@ -80,6 +81,10 @@ const WysiwygEditor = forwardRef<WysiwygEditorRef, Props>(
       extensions: [
         StarterKit.configure({ codeBlock: false }),
         Markdown,
+        Image.configure({
+          inline: false,
+          allowBase64: true,
+        }),
         Link.configure({
           openOnClick: false,  // we handle clicks ourselves
           autolink: true,
@@ -95,6 +100,7 @@ const WysiwygEditor = forwardRef<WysiwygEditorRef, Props>(
       editorProps: {
         attributes: {
           class: 'markdown-preview wysiwyg-prosemirror',
+          spellcheck: 'true',
         },
       },
       onUpdate: ({ editor }) => {
