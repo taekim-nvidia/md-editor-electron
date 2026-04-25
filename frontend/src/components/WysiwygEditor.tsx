@@ -5,6 +5,7 @@ import React, {
   useRef,
 } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
+import Link from '@tiptap/extension-link'
 import StarterKit from '@tiptap/starter-kit'
 import { Markdown } from '@tiptap/markdown'
 import Highlight from '@tiptap/extension-highlight'
@@ -59,10 +60,31 @@ const WysiwygEditor = forwardRef<WysiwygEditorRef, Props>(
     // Track last content set from outside to avoid re-setting same content
     const lastExternalContent = useRef(content)
 
+    // Handle link clicks — open in system browser
+    const handleLinkClick = (event: React.MouseEvent<HTMLDivElement>) => {
+      const target = event.target as HTMLElement
+      const link = target.closest('a')
+      if (link?.href) {
+        event.preventDefault()
+        event.stopPropagation()
+        const url = link.href
+        if (window.electronAPI?.openExternal) {
+          window.electronAPI.openExternal(url)
+        } else {
+          window.open(url, '_blank', 'noopener,noreferrer')
+        }
+      }
+    }
+
     const editor = useEditor({
       extensions: [
         StarterKit.configure({ codeBlock: false }),
         Markdown,
+        Link.configure({
+          openOnClick: false,  // we handle clicks ourselves
+          autolink: true,
+          linkOnPaste: true,
+        }),
         Highlight.configure({ multicolor: false }),
         TaskList,
         TaskItem.configure({ nested: true }),
@@ -165,6 +187,7 @@ const WysiwygEditor = forwardRef<WysiwygEditorRef, Props>(
         ref={containerRef}
         className="h-full overflow-y-auto p-6 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
         style={{ fontSize }}
+        onClick={handleLinkClick}
       >
         <EditorContent editor={editor} className="max-w-none" />
       </div>

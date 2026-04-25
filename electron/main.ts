@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron'
 import { execFile, execFileSync } from 'child_process'
 import { promisify } from 'util'
 import * as fs from 'fs'
@@ -206,6 +206,17 @@ ipcMain.handle('dialog:save', async (_event, defaultPath: string) => {
     ],
   })
   return result.canceled ? null : (result.filePath ?? null)
+})
+
+// ── IPC: open external URL in system browser ─────────────────────────────────
+
+ipcMain.handle('shell:openExternal', async (_event, url: string) => {
+  try {
+    await shell.openExternal(url)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: String(e) }
+  }
 })
 
 // ── IPC: fetch URL ────────────────────────────────────────────────────────────

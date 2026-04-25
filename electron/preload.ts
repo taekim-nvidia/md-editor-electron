@@ -27,4 +27,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   fetchUrl: (url: string) =>
     ipcRenderer.invoke('fetch:url', url),
+
+  openExternal: (url: string) =>
+    ipcRenderer.invoke('shell:openExternal', url),
 })

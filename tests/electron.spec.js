@@ -311,7 +311,7 @@ test.describe('Electron: UI + IPC integration', () => {
       const methods = await page.evaluate(() => {
         return Object.keys(window.electronAPI ?? {})
       })
-      const required = ['runGit', 'runGh', 'ghClone', 'readFile', 'writeFile', 'readDir', 'showOpenDialog', 'showSaveDialog', 'fetchUrl']
+      const required = ['runGit', 'runGh', 'ghClone', 'readFile', 'writeFile', 'readDir', 'showOpenDialog', 'showSaveDialog', 'fetchUrl', 'openExternal']
       for (const method of required) {
         expect(methods).toContain(method)
       }
@@ -475,6 +475,35 @@ test.describe('Electron: Git identity', () => {
       }, { args: ['config', '--global', 'user.email'], cwd: APP_ROOT })
       expect(result.ok).toBe(true)
       expect(result.stdout.trim()).toContain('@')
+    } finally {
+      await app.close()
+    }
+  })
+})
+
+// ── Section 10: openExternal IPC ────────────────────────────────────────────
+test.describe('Electron: openExternal IPC', () => {
+  test('openExternal IPC handler is registered', async () => {
+    const { app, page } = await launchApp()
+    try {
+      const hasMethod = await page.evaluate(() => {
+        return typeof window.electronAPI?.openExternal === 'function'
+      })
+      expect(hasMethod).toBe(true)
+    } finally {
+      await app.close()
+    }
+  })
+
+  test('openExternal returns ok for a valid URL', async () => {
+    const { app, page } = await launchApp()
+    try {
+      // We call it but can't verify the browser opened in headless mode
+      // At minimum it should not throw/error
+      const result = await page.evaluate(async (url) => {
+        return await window.electronAPI.openExternal(url)
+      }, 'https://github.com')
+      expect(result.ok).toBe(true)
     } finally {
       await app.close()
     }

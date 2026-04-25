@@ -19,6 +19,7 @@ interface ElectronAPI {
   readDir: (path: string) => Promise<ElectronFileEntry[]>
   showOpenDialog: () => Promise<string | null>
   showSaveDialog: (defaultPath: string) => Promise<string | null>
+  openExternal: (url: string) => Promise<{ ok: boolean; error?: string }>
   fetchUrl: (url: string) => Promise<{
     ok: boolean
     content?: string
