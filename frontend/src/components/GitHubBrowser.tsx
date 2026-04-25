@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { GhRepo, FileEntry } from '../types'
+import { ghPRs, PR } from '../lib/api'
 
 interface Props {
   onOpenFile: (filename: string, content: string, path: string) => void
@@ -20,19 +21,26 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
   const [activeRepo, setActiveRepo] = useState('')
   const [loading, setLoading] = useState(false)
   const [output, setOutput] = useState('')
+  const [isError, setIsError] = useState(false)
   const [commitMsg, setCommitMsg] = useState('')
+  const [prs, setPrs] = useState<PR[]>([])
+  const [prsLoading, setPrsLoading] = useState(false)
 
-  // Auto-navigate to a repo when opened via URL load
+  const showOutput = (msg: string, error = false) => {
+    setOutput(msg.trim())
+    setIsError(error)
+  }
+
+  // Auto-navigate when initialRepo changes (from URL load)
   useEffect(() => {
-    if (initialRepo && initialRepo.name && initialRepo.path) {
-      // Use cloneRepo so all state (repoPath, activeRepo, view, files) is set correctly
+    if (initialRepo?.name) {
       cloneRepo(initialRepo.name)
     }
   }, [initialRepo?.name])
 
   const fetchRepos = async () => {
     setLoading(true)
-    setOutput('')
+    showOutput('')
     try {
       if (window.electronAPI) {
         const r = await window.electronAPI.runGh([
@@ -42,31 +50,26 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
         if (r.ok) {
           setRepos(JSON.parse(r.stdout))
         } else {
-          setOutput('Error: ' + r.stderr)
+          showOutput('Error loading repos:\n' + (r.stderr || r.stdout), true)
         }
       } else {
         const res = await fetch('/api/gh/repos')
         const data = await res.json()
-        if (data.ok) {
-          setRepos(data.repos)
-        } else {
-          setOutput('Error: ' + data.error)
-        }
+        if (data.ok) setRepos(data.repos)
+        else showOutput('Error: ' + data.error, true)
       }
     } catch (e) {
-      setOutput('Network error: ' + String(e))
+      showOutput('Network error: ' + String(e), true)
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => {
-    fetchRepos()
-  }, [])
+  useEffect(() => { fetchRepos() }, [])
 
   const cloneRepo = async (nameWithOwner: string) => {
     setLoading(true)
-    setOutput(`Cloning ${nameWithOwner}…`)
+    showOutput('Cloning ' + nameWithOwner + '…')
     try {
       if (window.electronAPI) {
         const r = await window.electronAPI.ghClone(nameWithOwner)
@@ -76,9 +79,11 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
           setDirStack([])
           loadFiles(r.path!)
           setView('files')
-          setOutput(r.action === 'pulled' ? 'Pulled latest changes.' : 'Cloned successfully.')
+          showOutput(r.action === 'pulled' ? 'Pulled latest.' : 'Cloned successfully.')
+          onRepoLoaded?.(nameWithOwner, r.path!)
+          loadPRs(nameWithOwner)
         } else {
-          setOutput('Error: ' + r.error)
+          showOutput('Clone failed:\n' + (r.error ?? 'unknown error'), true)
         }
       } else {
         const res = await fetch('/api/gh/clone', {
@@ -93,13 +98,15 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
           setDirStack([])
           loadFiles(data.path)
           setView('files')
-          setOutput(data.action === 'pulled' ? 'Pulled latest changes.' : 'Cloned successfully.')
+          showOutput(data.action === 'pulled' ? 'Pulled latest.' : 'Cloned successfully.')
+          onRepoLoaded?.(nameWithOwner, data.path)
+          loadPRs(nameWithOwner)
         } else {
-          setOutput('Error: ' + data.error)
+          showOutput('Clone failed:\n' + data.error, true)
         }
       }
     } catch (e) {
-      setOutput('Network error: ' + String(e))
+      showOutput('Error: ' + String(e), true)
     } finally {
       setLoading(false)
     }
@@ -113,19 +120,28 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
         setFiles(entries)
         setCurrentDir(dir)
       } else {
-        const res = await fetch(`/api/gh/files?path=${encodeURIComponent(dir)}`)
+        const res = await fetch('/api/gh/files?path=' + encodeURIComponent(dir))
         const data = await res.json()
-        if (data.ok) {
-          setFiles(data.files)
-          setCurrentDir(dir)
-        } else {
-          setOutput('Error: ' + data.error)
-        }
+        if (data.ok) { setFiles(data.files); setCurrentDir(dir) }
+        else showOutput('Error: ' + data.error, true)
       }
     } catch (e) {
-      setOutput('Error: ' + String(e))
+      showOutput('Error loading files: ' + String(e), true)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadPRs = async (repo: string) => {
+    setPrsLoading(true)
+    try {
+      const result = await ghPRs(repo, 'open')
+      if (result.ok) setPrs(result.prs ?? [])
+      else setPrs([])
+    } catch (_) {
+      setPrs([])
+    } finally {
+      setPrsLoading(false)
     }
   }
 
@@ -136,16 +152,13 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
         const content = await window.electronAPI.readFile(filePath)
         onOpenFile(fileName, content, filePath)
       } else {
-        const res = await fetch(`/api/gh/read?path=${encodeURIComponent(filePath)}`)
+        const res = await fetch('/api/gh/read?path=' + encodeURIComponent(filePath))
         const data = await res.json()
-        if (data.ok) {
-          onOpenFile(fileName, data.content, filePath)
-        } else {
-          setOutput('Error: ' + data.error)
-        }
+        if (data.ok) onOpenFile(fileName, data.content, filePath)
+        else showOutput('Error: ' + data.error, true)
       }
     } catch (e) {
-      setOutput('Error: ' + String(e))
+      showOutput('Error opening file: ' + String(e), true)
     } finally {
       setLoading(false)
     }
@@ -157,56 +170,80 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
   }
 
   const navigateUp = () => {
-    const newStack = [...dirStack]
-    const parent = newStack.pop()
-    setDirStack(newStack)
+    const stack = [...dirStack]
+    const parent = stack.pop()
+    setDirStack(stack)
     if (parent) loadFiles(parent)
   }
 
   const commitAndPush = async () => {
-    if (!commitMsg.trim()) return
+    if (!commitMsg.trim() || !repoPath) return
     setLoading(true)
-    setOutput('Saving...')
+
+    // Step 1: Save
+    showOutput('Step 1/3: Saving file…')
     try {
       if (onSave) await Promise.resolve(onSave())
-      if (window.electronAPI) {
-        const addR = await window.electronAPI.runGit(['add', '-A'], repoPath)
-        if (!addR.ok) {
-          setOutput('Error during add: ' + addR.stderr)
+    } catch (e) {
+      showOutput('Save failed: ' + String(e), true)
+      setLoading(false)
+      return
+    }
+
+    if (window.electronAPI) {
+      // Step 2: git add -A
+      showOutput('Step 2/3: Staging changes (git add -A)…')
+      const addR = await window.electronAPI.runGit(['add', '-A'], repoPath)
+      if (!addR.ok) {
+        showOutput('git add failed:\n' + (addR.stderr || addR.stdout || 'unknown error'), true)
+        setLoading(false)
+        return
+      }
+
+      // Step 3: git commit
+      showOutput('Step 3/3: Committing…')
+      const commitR = await window.electronAPI.runGit(['commit', '-m', commitMsg], repoPath)
+      const commitOut = (commitR.stdout + '\n' + commitR.stderr).trim()
+      if (!commitR.ok) {
+        if (commitOut.includes('nothing to commit')) {
+          showOutput('Nothing to commit — working tree clean.')
+          setLoading(false)
           return
         }
-        const commitR = await window.electronAPI.runGit(
-          ['commit', '-m', commitMsg],
-          repoPath
-        )
-        if (!commitR.ok) {
-          setOutput('Error during commit: ' + commitR.stderr)
-          return
-        }
-        const pushR = await window.electronAPI.runGit(['push'], repoPath)
-        const combined =
-          commitR.stdout +
-          (commitR.stderr ? '\n' + commitR.stderr : '') +
-          '\n' +
-          pushR.stdout +
-          (pushR.stderr ? '\n' + pushR.stderr : '')
-        setOutput(combined)
-        if (pushR.ok) setCommitMsg('')
-      } else {
+        showOutput('Commit failed:\n' + commitOut, true)
+        setLoading(false)
+        return
+      }
+
+      // Step 4: git push
+      showOutput('Pushing to remote…')
+      const pushR = await window.electronAPI.runGit(['push'], repoPath)
+      const pushOut = (pushR.stdout + '\n' + pushR.stderr).trim()
+      if (!pushR.ok) {
+        showOutput('Push failed:\n' + pushOut, true)
+        setLoading(false)
+        return
+      }
+
+      const finalOut = [commitOut, pushOut].filter(Boolean).join('\n')
+      showOutput(finalOut || 'Committed and pushed successfully.')
+      setCommitMsg('')
+    } else {
+      try {
         const res = await fetch('/api/gh/commit-push', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ repoPath, message: commitMsg, addAll: true }),
         })
         const data = await res.json()
-        setOutput(data.ok ? data.output : 'Error: ' + data.error)
-        if (data.ok) setCommitMsg('')
+        if (data.ok) { showOutput(data.output || 'Done.'); setCommitMsg('') }
+        else showOutput('Error:\n' + (data.error || 'unknown'), true)
+      } catch (e) {
+        showOutput('Network error: ' + String(e), true)
       }
-    } catch (e) {
-      setOutput('Network error: ' + String(e))
-    } finally {
-      setLoading(false)
     }
+
+    setLoading(false)
   }
 
   const isTextFile = (name: string) =>
@@ -219,24 +256,20 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
         <div className="flex items-center gap-2">
           {view === 'files' && (
             <button
-              onClick={() => setView('repos')}
+              onClick={() => { setView('repos'); setPrs([]) }}
               className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-xs"
             >
               ← Repos
             </button>
           )}
-          <span>
-            {view === 'repos' ? 'GitHub' : (activeRepo.split('/')[1] ?? activeRepo)}
-          </span>
+          <span>{view === 'repos' ? 'GitHub' : (activeRepo.split('/')[1] ?? activeRepo)}</span>
         </div>
         <button
           onClick={view === 'repos' ? fetchRepos : () => loadFiles(currentDir)}
           disabled={loading}
           className="text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
           title="Refresh"
-        >
-          ↻
-        </button>
+        >↻</button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -244,16 +277,12 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
         {view === 'repos' && (
           <div>
             {loading && (
-              <div className="text-xs text-center text-gray-400 p-4 animate-pulse">
-                Loading repos…
-              </div>
+              <div className="text-xs text-center text-gray-400 p-4 animate-pulse">Loading repos…</div>
             )}
             {repos.map((repo) => (
-              <div
-                key={repo.nameWithOwner}
+              <div key={repo.nameWithOwner}
                 className="flex items-start justify-between px-3 py-2.5 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer group"
-                onClick={() => cloneRepo(repo.nameWithOwner)}
-              >
+                onClick={() => cloneRepo(repo.nameWithOwner)}>
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-medium text-gray-800 dark:text-gray-200 truncate">
                     {repo.nameWithOwner}
@@ -264,24 +293,19 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
                     </div>
                   )}
                 </div>
-                <span className="text-xs text-gray-400 shrink-0 ml-2 group-hover:text-indigo-500">
-                  →
-                </span>
+                <span className="text-xs text-gray-400 shrink-0 ml-2 group-hover:text-indigo-500">→</span>
               </div>
             ))}
           </div>
         )}
 
-        {/* File browser */}
+        {/* File browser + PRs */}
         {view === 'files' && (
           <div>
             {/* Breadcrumb */}
             <div className="flex items-center gap-1 px-3 py-1.5 bg-gray-50 dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
               {dirStack.length > 0 && (
-                <button
-                  onClick={navigateUp}
-                  className="hover:text-gray-700 dark:hover:text-gray-200"
-                >
+                <button onClick={navigateUp} className="hover:text-gray-700 dark:hover:text-gray-200">
                   ← Up
                 </button>
               )}
@@ -289,40 +313,50 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
             </div>
 
             {loading && (
-              <div className="text-xs text-center text-gray-400 p-3 animate-pulse">
-                Loading…
-              </div>
+              <div className="text-xs text-center text-gray-400 p-3 animate-pulse">Loading…</div>
             )}
 
             {files.map((file) => (
-              <div
-                key={file.path}
+              <div key={file.path}
                 className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
                 onClick={() => {
                   if (file.isDir) navigateInto(file)
                   else if (isTextFile(file.name)) openFile(file.path, file.name)
-                }}
-              >
-                <span className="text-sm">
-                  {file.isDir ? '📁' : isTextFile(file.name) ? '📄' : '📎'}
-                </span>
-                <span
-                  className={`text-xs truncate ${
-                    !file.isDir && !isTextFile(file.name)
-                      ? 'text-gray-400 dark:text-gray-500'
-                      : 'text-gray-800 dark:text-gray-200'
-                  }`}
-                >
+                }}>
+                <span className="text-sm">{file.isDir ? '📁' : isTextFile(file.name) ? '📄' : '📎'}</span>
+                <span className={`text-xs truncate ${!file.isDir && !isTextFile(file.name) ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
                   {file.name}
                 </span>
               </div>
             ))}
 
+            {/* Open PRs */}
+            {(prs.length > 0 || prsLoading) && (
+              <div className="border-t border-gray-200 dark:border-gray-700 mt-2">
+                <div className="px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800">
+                  Open PRs {prs.length > 0 && `(${prs.length})`}
+                </div>
+                {prsLoading && (
+                  <div className="text-xs text-center text-gray-400 p-2 animate-pulse">Loading PRs…</div>
+                )}
+                {prs.map((pr) => (
+                  <div key={pr.number}
+                    className="flex items-start gap-2 px-3 py-2 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                    title={`Open PR #${pr.number} on GitHub`}
+                    onClick={() => window.open('https://github.com/' + activeRepo + '/pull/' + pr.number, '_blank')}>
+                    <span className="text-xs text-green-600 dark:text-green-400 font-mono shrink-0">#{pr.number}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs text-gray-800 dark:text-gray-200 truncate">{pr.title}</div>
+                      <div className="text-xs text-gray-400">{pr.author?.login ?? ''}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Commit + push */}
             <div className="p-3 border-t border-gray-200 dark:border-gray-700 mt-2">
-              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-medium">
-                Commit &amp; Push
-              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-medium">Commit &amp; Push</div>
               <textarea
                 value={commitMsg}
                 onChange={(e) => setCommitMsg(e.target.value)}
@@ -342,10 +376,17 @@ export default function GitHubBrowser({ onOpenFile, onSave, onRepoLoaded, initia
         )}
       </div>
 
-      {/* Output */}
+      {/* Output — red on error, normal on success */}
       {output && (
-        <div className="px-3 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-          <pre className="text-xs whitespace-pre-wrap text-gray-600 dark:text-gray-400 max-h-24 overflow-y-auto">
+        <div className={`px-3 py-2 border-t ${isError
+          ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+          : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'}`}>
+          {isError && (
+            <div className="text-xs font-bold text-red-600 dark:text-red-400 mb-1">ERROR</div>
+          )}
+          <pre className={`text-xs whitespace-pre-wrap max-h-32 overflow-y-auto ${isError
+            ? 'text-red-700 dark:text-red-300'
+            : 'text-gray-600 dark:text-gray-400'}`}>
             {output}
           </pre>
         </div>

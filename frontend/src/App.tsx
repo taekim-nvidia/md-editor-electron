@@ -318,6 +318,14 @@ ${body}
         // GitHub repo/blob URL — use ghClone + readFile (same path as GitHub Browser)
         const ghBlob = cleanUrl.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/)
         const ghRepo = cleanUrl.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/)
+        // GitHub org/user page — open GH browser showing that account's repos
+        const ghOrg = cleanUrl.match(/^https?:\/\/github\.com\/([^/]+)\/?$/)
+
+        // Org/user page — just open GH browser (repos will auto-load, user can filter)
+        if (ghOrg && !ghRepo && !ghBlob) {
+          setShowGh(true)
+          return
+        }
 
         if ((ghBlob || ghRepo) && window.electronAPI) {
           const nameWithOwner = ghBlob ? `${ghBlob[1]}/${ghBlob[2]}` : `${ghRepo![1]}/${ghRepo![2]}`
