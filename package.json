@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "electron:compile": "node node_modules/typescript/bin/tsc -p electron/tsconfig.json",
-    "dev": "npm run electron:compile && concurrently -n vite,electron -c magenta,cyan \"npm run dev --workspace=frontend\" \"wait-on tcp:5173 && electron .\"",
+    "dev": "npm run electron:compile && concurrently -n vite,electron -c magenta,cyan \"npm run dev --workspace=frontend\" \"wait-on tcp:5173 && electron . --no-sandbox\"",
     "build": "npm run build --workspace=frontend && npm run electron:compile",
     "dist": "npm run build && electron-builder",
     "install:all": "npm install",
